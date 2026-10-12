@@ -204,10 +204,14 @@ class Memory:
                "FROM fts JOIN chunks c ON c.id = fts.rowid WHERE fts MATCH ?")
         args: list = [fts_q]
         if project:
-            # exact folder or a subfolder of it; '/shop' must not match '/shop2'
-            esc = project.rstrip("/\\").replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            sql += " AND (c.project = ? OR c.project LIKE ? ESCAPE '\\')"
-            args += [project.rstrip("/\\"), esc + "/%"]
+            # exact folder or a subfolder ('/shop' must not match '/shop2'); also the resolved
+            # path, since macOS logs /private/var for /var
+            clauses = []
+            for cand in dict.fromkeys([project.rstrip("/\\"), os.path.realpath(project).rstrip("/\\")]):
+                esc = cand.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                clauses.append("c.project = ? OR c.project LIKE ? ESCAPE '\\'")
+                args += [cand, esc + "/%"]
+            sql += " AND (" + " OR ".join(clauses) + ")"
         sql += " ORDER BY bm25(fts) LIMIT ?"
         args.append(limit * 3)
         out, used = [], 0

@@ -326,3 +326,17 @@ def test_mcp_tool_error_reaches_agent_with_hint(tmp_path, monkeypatch):
         assert "Unexpected" not in type(exc).__name__
         text = str(exc)
     assert "Hint" in text
+
+
+def test_memory_project_filter_follows_symlinks(tmp_path):
+    """Bug (macOS CI): sessions logged under /private/var were not found when searching from /var."""
+    from keelyard.memory import Memory, Turn
+
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    m = Memory(tmp_path / "m.db")
+    m._add(Turn("claude-code", "s1", str(real), "2026-01-01", "user", "round the discount down"))
+    m.db.commit()
+    assert m.search("discount", project=str(link))
