@@ -10,12 +10,12 @@ import argparse
 import asyncio
 import datetime as dt
 import json
-import shlex
 import sys
 import textwrap
 from pathlib import Path
 
 from . import __version__, config, session
+from .proc import join_cmd
 
 SUPPRESS = argparse.SUPPRESS
 
@@ -574,7 +574,7 @@ def do_run(a):
     if not cmd:
         raise Fail("nothing to run. Hint: keelyard run pytest -q", code=2)
     cfg = _cfg()
-    code, out = run_filtered(shlex.join(cmd), Path.cwd(), cfg.state / "raw")
+    code, out = run_filtered(join_cmd(cmd), Path.cwd(), cfg.state / "raw")
     if _human(a):
         print(out)
     return code, {"exit": code, "output": out}

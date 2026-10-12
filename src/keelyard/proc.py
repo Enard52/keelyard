@@ -12,3 +12,12 @@ def split_cmd(cmd: str) -> list[str] | str:
     if os.name == "nt":
         return cmd
     return shlex.split(cmd)
+
+
+def join_cmd(argv: list[str]) -> str:
+    """Inverse of split_cmd for this platform."""
+    if os.name == "nt":
+        import subprocess
+
+        return subprocess.list2cmdline(argv)
+    return shlex.join(argv)

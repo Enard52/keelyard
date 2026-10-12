@@ -371,3 +371,15 @@ def test_cli_output_survives_a_cp1252_pipe(project):
     p = subprocess.run([sys.executable, "-m", "keelyard.cli", "run", "--", sys.executable, "-c", "import sys; sys.stdout.buffer.write('a \\u2192 b'.encode())"],  # noqa: E501
                        cwd=project, capture_output=True, env=env)
     assert p.returncode == 0, p.stderr.decode(errors="replace")
+
+
+def test_join_and_split_round_trip(monkeypatch):
+    """Bug (Windows): `keelyard run -- python -c ...` was joined with POSIX quotes, so Windows could not find 'python'."""
+    import subprocess as sp
+
+    from keelyard import proc
+
+    argv = [r"C:\Program Files\Py\python.exe", "-c", "print('a b')"]
+    monkeypatch.setattr(proc.os, "name", "nt")
+    line = proc.join_cmd(argv)
+    assert line == sp.list2cmdline(argv) and proc.split_cmd(line) == line
