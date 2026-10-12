@@ -29,7 +29,7 @@ def test_gate_lifecycle(cfg, project):
     assert run["exit"] == 0
     assert hooks.handle("Stop", claude("Stop", stop_hook_active=True), cfg) is None
     assert pf.load().task.startswith("make add()")
-    assert (pf.dir / "report.html").read_text().count("PROVEN") == 1
+    assert (pf.dir / "report.html").read_text().count("pill ok\">Proven<") == 1
 
 
 def test_gate_gives_up_after_max_blocks(cfg, project):

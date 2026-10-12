@@ -117,13 +117,20 @@ class Shadow:
         with file_lock(self.lock):
             return self._snapshot(tool, session, note)
 
-    def _stage(self) -> list[str]:
-        """Stage the worktree into the shadow index; return paths skipped for size."""
+    def _stage(self, parent: str | None) -> list[str]:
+        """Stage the worktree into the shadow index; return paths skipped for size.
+
+        Only paths that changed since the last snapshot are inspected, so a 7,000-file repo
+        costs one `git add` plus a handful of stat calls per agent edit."""
         limit = float(self.cfg.section("rewind").get("max_file_mb", 20)) * 1024 * 1024
         self._git("add", "-A", "--ignore-errors", ".", check=False)
         nested = []
         skipped = []
-        for rel in self._names("ls-files", "--cached", "--others", "--exclude-standard"):
+        changed = (self._names("diff", "--cached", "--name-only", "--no-renames", parent) if parent
+                   else self._names("ls-files", "--cached"))
+        # whatever `git add` refused (empty nested repositories) is still untracked: usually nothing
+        changed += self._names("ls-files", "--others", "--directory", "--exclude-standard")
+        for rel in changed:
             path = self.root / rel
             if rel.endswith("/") or (path.is_dir() and (path / ".git").exists()):
                 nested.append(rel.rstrip("/"))
@@ -160,10 +167,10 @@ class Shadow:
         return sorted(skipped)
 
     def _snapshot(self, tool: str, session: str, note: str) -> Step | None:
-        skipped = self._stage()
-        tree = self._git("write-tree").decode().strip()
         prev = self.steps()
         parent = prev[-1].sha if prev else None
+        skipped = self._stage(parent)
+        tree = self._git("write-tree").decode().strip()
         if parent:
             prev_tree = self._git("rev-parse", f"{parent}^{{tree}}").decode().strip()
             if prev_tree == tree:

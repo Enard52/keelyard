@@ -1,0 +1,26 @@
+# Runs without any agent CLI or API key: a local model through Ollama, plus two baselines.
+#   ollama pull qwen2.5-coder:1.5b   (or any model; set `model` below)
+#   keelyard arena run examples/arena/discount/task.local.toml --out arena-local
+
+[task]
+name = "coupon-discount"
+repo = "repo"
+prompt = "In cart.py, support coupon='SAVE10' (10% off) and raise ValueError for unknown coupons. Make the tests in test_cart.py pass."
+check = "python3 -m pytest -q"
+runs = 5
+timeout = 900
+
+[[agent]]
+name = "do nothing"
+model = "baseline"
+cmd = ["python3", "-c", "pass"]
+
+[[agent]]
+name = "one-shot prompt"
+model = "qwen-coder-1.5b"
+cmd = ["python3", "{here}/contenders/oneshot.py", "--model", "{model}", "{prompt}"]
+
+[[agent]]
+name = "reference fix"
+model = "no model"
+cmd = ["python3", "{here}/contenders/reference.py"]

@@ -7,6 +7,8 @@ starts with what went wrong and ends with a `Hint:` saying what to do next.
 
 from __future__ import annotations
 
+import functools
+import inspect
 from typing import Annotated, Any, Literal
 
 from pydantic import Field
@@ -16,6 +18,11 @@ try:  # mcp >= 2
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server  # type: ignore
 from mcp.types import ToolAnnotations
+
+try:
+    from mcp.server.mcpserver.exceptions import ToolError
+except ImportError:  # mcp 1.x
+    from mcp.server.fastmcp.exceptions import ToolError  # type: ignore
 
 from . import __version__, config, session
 from .codemap import find_symbol as _find_symbol
@@ -50,6 +57,32 @@ def _ann(title: str, read_only: bool = False, destructive: bool = False, idempot
                                            "idempotentHint": idempotent, "openWorldHint": open_world})
 
 
+def _tool(annotations: ToolAnnotations):
+    """Register a tool; expected failures reach the agent as a ToolError with their hint text."""
+    def deco(fn):
+        if inspect.iscoroutinefunction(fn):
+            @functools.wraps(fn)
+            async def awrapper(*args, **kwargs):
+                try:
+                    return await fn(*args, **kwargs)
+                except ToolError:
+                    raise
+                except (ValueError, KeyError, LookupError, OSError, RuntimeError, config.ProjectError) as exc:
+                    raise ToolError(str(exc).strip("'\"")) from exc
+            return mcp.tool(annotations=annotations)(awrapper)
+
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except ToolError:
+                raise
+            except (ValueError, KeyError, LookupError, OSError, RuntimeError, config.ProjectError) as exc:
+                raise ToolError(str(exc).strip("'\"")) from exc
+        return mcp.tool(annotations=annotations)(wrapper)
+    return deco
+
+
 def _ctx() -> tuple[config.Config, str]:
     cfg = config.load()
     cfg.require_project()
@@ -60,7 +93,7 @@ Step = Annotated[int, Field(ge=1, description="A step number from rewind_list, e
 
 
 # ---------------------------------------------------------------- proof
-@mcp.tool(annotations=_ann("Record requirements", idempotent=True))
+@_tool(_ann("Record requirements", idempotent=True))
 def proof_requirements(
     items: Annotated[list[str], Field(min_length=1, description='One short, checkable item per user ask, e.g. ["discount applies once", "empty cart costs 0"].')],
 ) -> dict[str, Any]:
@@ -71,7 +104,7 @@ def proof_requirements(
     return {"requirements": Proof(cfg, sid).add_requirements(items)}
 
 
-@mcp.tool(annotations=_ann("Mark requirement verified", idempotent=True))
+@_tool(_ann("Mark requirement verified", idempotent=True))
 def proof_check(
     requirement_id: Annotated[int, Field(ge=1, description="The id from proof_requirements, e.g. 1.")],
     evidence: Annotated[str, Field(min_length=1, description='What you ran or saw, e.g. "pytest tests/test_cart.py::test_once passed" or "cart.py:14 caps at one use".')],
@@ -83,7 +116,7 @@ def proof_check(
     return Proof(cfg, sid).check(requirement_id, evidence)
 
 
-@mcp.tool(annotations=_ann("Run tests", open_world=True))
+@_tool(_ann("Run tests", open_world=True))
 def proof_run_tests(
     phase: Annotated[Literal["before", "after"], Field(description='"before" your change (baseline) or "after" it (required by the gate).')] = "after",
     command: Annotated[str, Field(description='Optional override, e.g. "pytest -q tests/test_cart.py". Default: [proof].test_cmd or auto-detected.')] = "",
@@ -97,7 +130,7 @@ def proof_run_tests(
             "output": compress_output(r["tail"], 3000)}
 
 
-@mcp.tool(annotations=_ann("Screenshot app", open_world=True))
+@_tool(_ann("Screenshot app", open_world=True))
 def proof_screenshot(
     url: Annotated[str, Field(description='Page to capture, e.g. "http://localhost:3000/cart". Default: [proof].app_url.')] = "",
 ) -> dict[str, Any]:
@@ -106,7 +139,7 @@ def proof_screenshot(
     return Proof(cfg, sid).screenshot(url or None)
 
 
-@mcp.tool(annotations=_ann("Proof status", read_only=True))
+@_tool(_ann("Proof status", read_only=True))
 def proof_status() -> dict[str, Any]:
     """Is the work proven? Returns {"proven", "missing": [what to do next], "requirements", "report"}."""
     cfg, sid = _ctx()
@@ -120,7 +153,7 @@ def _step(s) -> dict[str, Any]:
     return {"step": s.step, "tool": s.tool, "ts": round(s.ts, 3), "files": s.files[:20], "n_files": len(s.files)}
 
 
-@mcp.tool(annotations=_ann("List snapshots", read_only=True))
+@_tool(_ann("List snapshots", read_only=True))
 def rewind_list(last: Annotated[int, Field(ge=1, le=500, description="How many recent steps, e.g. 20.")] = 20) -> dict[str, Any]:
     """List recent workspace snapshots, oldest first. One is taken after every edit or shell command.
 
@@ -130,7 +163,7 @@ def rewind_list(last: Annotated[int, Field(ge=1, le=500, description="How many r
     return {"steps": [_step(s) for s in steps[-last:]], "total": len(steps)}
 
 
-@mcp.tool(annotations=_ann("Show a step's diff", read_only=True))
+@_tool(_ann("Show a step's diff", read_only=True))
 def rewind_diff(step: Step) -> dict[str, Any]:
     """The unified diff a snapshot step made. Returns {"step", "files", "diff"} (long diffs are shortened)."""
     cfg, _ = _ctx()
@@ -138,7 +171,7 @@ def rewind_diff(step: Step) -> dict[str, Any]:
     return {"step": step, "files": sh.get(step).files, "diff": compress_output(sh.diff(step), 8000)}
 
 
-@mcp.tool(annotations=_ann("Restore files to a step", destructive=True))
+@_tool(_ann("Restore files to a step", destructive=True))
 def rewind_to(step: Step) -> dict[str, Any]:
     """Restore project files to how they were after `step`. A safety snapshot is taken first,
     so calling rewind_to(safety_step) undoes this. Returns {"restored", "removed", "safety_step", "new_step"}."""
@@ -147,7 +180,7 @@ def rewind_to(step: Step) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------- context saver
-@mcp.tool(annotations=_ann("Read file (deduplicated)", read_only=True))
+@_tool(_ann("Read file (deduplicated)", read_only=True))
 def read_file(
     path: Annotated[str, Field(description='Project-relative path, e.g. "src/cart.py". Windows separators are accepted.')],
     start: Annotated[int, Field(ge=1, description="First line, 1-based.")] = 1,
@@ -160,7 +193,7 @@ def read_file(
     return {"path": path, "content": ReadCache(cfg, sid).read(path, start, end or None, force)}
 
 
-@mcp.tool(annotations=_ann("Run command, compact output", open_world=True))
+@_tool(_ann("Run command, compact output", open_world=True))
 def run_compact(
     command: Annotated[str, Field(description='Command line, run without a shell, e.g. "pytest -q" or "git log -n 20".')],
     timeout: Annotated[int, Field(ge=1, le=3600, description="Seconds before the command is killed.")] = 600,
@@ -172,7 +205,7 @@ def run_compact(
     return {"exit": code, "output": out}
 
 
-@mcp.tool(annotations=_ann("Full output by id", read_only=True))
+@_tool(_ann("Full output by id", read_only=True))
 def recall(output_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9]{1,64}$", description='The id printed by run_compact, e.g. "3f9a1c2b7d4e".')]) -> dict[str, Any]:
     """Return the full raw output that run_compact or the shell-output filter shortened."""
     cfg, _ = _ctx()
@@ -182,21 +215,21 @@ def recall(output_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9]{1,64}$", descr
     return {"id": output_id, "output": p.read_text(errors="replace")}
 
 
-@mcp.tool(annotations=_ann("Outline a file", read_only=True))
+@_tool(_ann("Outline a file", read_only=True))
 def outline(path: Annotated[str, Field(description='Project-relative path, e.g. "src/cart.py".')]) -> dict[str, Any]:
     """Signatures and classes with line numbers. Read this before reading a whole file."""
     cfg, sid = _ctx()
     return {"path": path, "outline": _outline(ReadCache(cfg, sid).resolve(path))}
 
 
-@mcp.tool(annotations=_ann("Project map", read_only=True))
+@_tool(_ann("Project map", read_only=True))
 def project_map() -> dict[str, Any]:
     """Files per directory with approximate token sizes. Start here in an unfamiliar repo."""
     cfg, _ = _ctx()
     return {"map": _project_map(cfg.root)}
 
 
-@mcp.tool(annotations=_ann("Find a definition", read_only=True))
+@_tool(_ann("Find a definition", read_only=True))
 def find_symbol(name: Annotated[str, Field(min_length=1, description='Function, class or type name, e.g. "Cart".')]) -> dict[str, Any]:
     """Where is a symbol defined? Returns {"matches": ["path:line: signature", ...]}."""
     cfg, _ = _ctx()
@@ -204,7 +237,7 @@ def find_symbol(name: Annotated[str, Field(min_length=1, description='Function, 
     return {"name": name, "matches": [ln for ln in text.splitlines() if ln.strip() and ":" in ln]}
 
 
-@mcp.tool(annotations=_ann("Token usage", read_only=True))
+@_tool(_ann("Token usage", read_only=True))
 def usage_report(by: Annotated[Literal["day", "model", "agent"], Field(description="How to group rows.")] = "day") -> dict[str, Any]:
     """Token usage and cost from local Claude Code, Codex and OpenCode logs. Cost is null for unpriced models."""
     cfg, _ = _ctx()
@@ -214,7 +247,7 @@ def usage_report(by: Annotated[Literal["day", "model", "agent"], Field(descripti
                                for k, r in rows.items()]}
 
 
-@mcp.tool(annotations=_ann("Which model for a subtask", read_only=True))
+@_tool(_ann("Which model for a subtask", read_only=True))
 def route_task(
     task: Annotated[str, Field(description='The subtask, e.g. "summarise these 30 log files".')],
     n_files: Annotated[int, Field(ge=0, description="How many files it touches.")] = 0,
@@ -224,7 +257,7 @@ def route_task(
 
 
 # ---------------------------------------------------------------- swarm
-@mcp.tool(annotations=_ann("Run helper tasks", open_world=True))
+@_tool(_ann("Run helper tasks", open_world=True))
 async def swarm(
     tasks: Annotated[list[dict[str, Any]], Field(min_length=1, description=(
         'Each: {"kind": "ask"|"summarize"|"draft_edit"|"grep", "prompt": str, "files": [paths]}. '
@@ -247,7 +280,7 @@ async def swarm(
                          "output": r.output[:1500], "tokens_in": r.tokens_in, "tokens_out": r.tokens_out} for r in results]}
 
 
-@mcp.tool(annotations=_ann("Verify a helper answer", read_only=True))
+@_tool(_ann("Verify a helper answer", read_only=True))
 def swarm_verify(
     answer: Annotated[str, Field(description="The answer or unified diff to check.")],
     files: Annotated[list[str], Field(description='Files the answer may cite, e.g. ["cart.py"].')] = [],  # noqa: B006
@@ -263,7 +296,7 @@ def swarm_verify(
 
 
 # ---------------------------------------------------------------- memory
-@mcp.tool(annotations=_ann("Search past sessions", read_only=True))
+@_tool(_ann("Search past sessions", read_only=True))
 def memory_search(
     query: Annotated[str, Field(min_length=1, description='Words to look for, e.g. "stripe webhook signature".')],
     this_project_only: Annotated[bool, Field(description="Only sessions that ran in this project.")] = True,
@@ -277,7 +310,7 @@ def memory_search(
     return {"query": query, "hits": m.search(query, str(cfg.root) if this_project_only else None, budget_chars)}
 
 
-@mcp.tool(annotations=_ann("keelyard status", read_only=True))
+@_tool(_ann("keelyard status", read_only=True))
 def status() -> dict[str, Any]:
     """One call to orient yourself: version, project root, snapshot count, proof state."""
     cfg, sid = _ctx()

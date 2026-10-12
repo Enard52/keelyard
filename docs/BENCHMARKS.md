@@ -53,12 +53,22 @@ The corpus is small. Please contribute more real logs.
 
 ## Snapshots
 
-`bench_snapshot`: write a one-line probe file, then snapshot. Five runs each.
+`keelyard bench` snapshots into a temporary shadow repo (your timeline is untouched). *Warm*: one file edited, snapshot. *Cold*: the index is dropped first. Five runs each, Linux box, Oct 2026.
 
-| Repo | Tracked files | First snapshot | Median | Max |
+| Repo | Tracked files | First snapshot | Warm median | Cold median |
 |---|---|---|---|---|
-| keelyard | 36 | n/a | 11.0 ms | 12.2 ms |
-| django (shallow clone) | 7,083 | 2.09 s | 71.7 ms | 113.6 ms |
+| keelyard | 112 | 174 ms | 8 ms | 24 ms |
+| django (shallow clone) | 7,083 | 2.34 s | 88 ms | 427 ms |
+
+Only files changed since the last snapshot are size-checked, so warm cost tracks the edit, not the repo.
+
+## Arena, local run
+
+`examples/arena/discount`, five hidden checks, qwen-coder 1.5B on Ollama: do nothing 0/5, one-shot qwen 0/5 (226 in / 63 out tokens), reference fix 5/5. No Claude Code, Codex or OpenCode runs yet.
+
+## Feature matrix
+
+`python bench/feature_matrix.py` runs every CLI command and flag, every hook and every MCP tool; results in [feature-matrix.md](feature-matrix.md).
 
 ## Swarm with a small local model
 

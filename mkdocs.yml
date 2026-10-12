@@ -1,0 +1,56 @@
+site_name: keelyard
+site_description: Make coding agents prove their work, undo any step, and keep their context small.
+repo_url: https://github.com/akobirjontulqinovfuture/keelyard
+repo_name: keelyard
+edit_uri: edit/main/docs/
+copyright: Apache-2.0 · Geist fonts under OFL-1.1
+exclude_docs: |
+  demo/
+theme:
+  name: material
+  font: false
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: {icon: material/weather-sunny, name: Light mode}
+  features: [navigation.sections, navigation.top, content.code.copy, search.highlight, navigation.footer]
+  icon:
+    repo: fontawesome/brands/github
+extra_css: [assets/extra.css]
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+nav:
+  - Overview: index.md
+  - Quickstart: quickstart.md
+  - Guide:
+      - Proof gate: guide/proof.md
+      - Rewind: guide/rewind.md
+      - Smaller context: guide/context.md
+      - Memory and usage: guide/memory.md
+      - Swarm: guide/swarm.md
+      - Arena: guide/arena.md
+      - For agents: guide/agents.md
+  - Reference:
+      - CLI: cli.md
+      - MCP tools: mcp.md
+      - Configuration: config.md
+      - Exit codes and JSON: json.md
+  - Troubleshooting: troubleshooting.md
+  - Benchmarks: BENCHMARKS.md
+  - Feature matrix: feature-matrix.md

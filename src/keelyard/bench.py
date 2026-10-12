@@ -107,15 +107,20 @@ def bench_snapshot(cfg: Config, runs: int = 5) -> dict:
         t0 = time.perf_counter()
         first = sh.snapshot("bench-baseline")
         first_ms = 1000 * (time.perf_counter() - t0)
-        times = []
-        for _ in range(runs):
-            (Path(tmp) / "shadow.git" / "index").unlink(missing_ok=True)  # force a full re-stage
+        warm, cold = [], []
+        for _ in range(runs):  # warm: the index is reused, as it is between two agent edits
             t0 = time.perf_counter()
             sh.snapshot("bench")
-            times.append(time.perf_counter() - t0)
+            warm.append(time.perf_counter() - t0)
+        for _ in range(runs):  # cold: the index is thrown away and every file is re-hashed
+            (Path(tmp) / "shadow.git" / "index").unlink(missing_ok=True)
+            t0 = time.perf_counter()
+            sh.snapshot("bench")
+            cold.append(time.perf_counter() - t0)
         n_files = len(first.files) if first else 0
-    return {"files": n_files, "runs": runs, "first_ms": round(first_ms, 1),
-            "median_ms": round(1000 * statistics.median(times), 1), "max_ms": round(1000 * max(times), 1)}
+    ms = lambda xs: round(1000 * statistics.median(xs), 1)  # noqa: E731
+    return {"files": n_files, "runs": runs, "first_ms": round(first_ms, 1), "median_ms": ms(warm),
+            "max_ms": round(1000 * max(warm), 1), "cold_median_ms": ms(cold)}
 
 
 def run_all(cfg: Config) -> dict:

@@ -2,146 +2,113 @@
 
 # keelyard
 
-**Make AI coding agents prove their work, undo their mistakes, and spend fewer tokens.**
+**Your coding agent has to show its work before it can say "done".**<br>
+Every edit is snapshotted, so any step can be undone. Logs are trimmed before they eat the context window.
 
 [![CI](https://github.com/akobirjontulqinovfuture/keelyard/actions/workflows/ci.yml/badge.svg)](https://github.com/akobirjontulqinovfuture/keelyard/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
-![Works with](https://img.shields.io/badge/works%20with-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20OpenCode-2f6f4f)
-![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
+[![License](https://img.shields.io/badge/license-Apache--2.0-111111)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.11%20%E2%80%93%203.13-111111)
+![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20OpenCode-1F6F4A)
+![Status](https://img.shields.io/badge/status-alpha-A15C07)
+
+<img src="docs/img/hero.gif" alt="keelyard in a terminal: init, the proof gate stopping an agent that deleted tests, rewind, then proven" width="760">
 
 </div>
 
-keelyard plugs into Claude Code, Codex and OpenCode through their own hooks and MCP. Nothing sits
-between you and your model provider, so it works on $20 subscription plans as well as API keys.
-Everything runs locally.
+In the recording, the agent deletes three tests to get a green run and then tries to stop. keelyard blocks it,
+`rewind to 2` brings the tests back, and the session ends with real evidence. Every line of output is real.
+The agent's own edits are replayed from [`docs/demo/hero.sh`](docs/demo/hero.sh).
+
+## Quickstart
+
+```bash
+pipx install git+https://github.com/akobirjontulqinovfuture/keelyard   # or: pip install ...
+cd your-project
+keelyard init            # finds Claude Code, Codex and OpenCode and wires each one
+```
+
+Then use your agent as usual. `keelyard status` shows where things stand, and `keelyard doctor` checks
+the setup. `keelyard selftest` runs a scripted agent through the whole flow in a temporary folder.
+
+## What it does
+
+**Proof gate.** When an agent changed files, its Stop hook will not let it finish until three things are true:
+there is a checklist of what you asked for, every item has evidence, and the tests passed after the last edit.
+Each run produces a one-file HTML report you can attach to a PR. [Example](docs/img/proof-report.png).
+
+**Rewind.** Each edit and shell command is snapshotted into a separate git repository under `.keelyard/`.
+Your own `.git` is never touched. `keelyard rewind list`, `show`, `to` and `fork` work by step number, and
+`keelyard rewind list -i` opens a browser for the timeline. A rewind snapshots the current state first,
+so you can undo it.
+
+**Smaller context.** Command-aware filters for git, pytest, cargo, go, jest, grep, find, ruff, eslint and mypy
+keep every failure and `file:line` and drop the rest. In Claude Code the filtered output replaces the original,
+and `keelyard recall <id>` gets the full text back. Reading an unchanged file a second time returns a one-line
+notice instead of the whole file. `project_map`, `outline` and `find_symbol` let the agent find code
+without reading it end to end.
+
+**Memory and usage.** One full-text index covers your past Claude Code, Codex and OpenCode sessions
+(`memory_search`). There is also a token and cost table built from local logs (`keelyard usage`).
+
+**Swarm and arena.** `swarm` hands bulk reading or drafting to a cheap model and checks every `path:line` it
+cites. `arena` runs one task across several agents and models and reports pass rate, time and tokens.
+
+## For agents
+
+`keelyard init` writes everything an agent needs to find its way:
+
+- an MCP server with 20 tools. Each tool has a typed schema, an example in every parameter and JSON output.
+- a short section in `CLAUDE.md` or `AGENTS.md` that describes the workflow
+- for Claude Code, a skill (`.claude/skills/keelyard`) and the slash commands `/keelyard:status`,
+  `/keelyard:prove` and `/keelyard:undo`
+
+Every CLI command also accepts `--json` and uses stable exit codes: `0` ok, `1` error, `2` usage error,
+`3` a check did not pass.
+
+## Measured
+
+All numbers come from this repository's scripts, run on an 8-vCPU Linux machine on 2026-10-12. Details and
+caveats are in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
+| | |
+|---|---|
+| Output filters vs raw, 8 real commands | 56,522 → 5,901 tokens; 100% of extracted facts kept |
+| Same 8 commands through rtk 0.51 | 5,747 tokens; 24% of ruff and 71% of pytest facts kept |
+| Snapshot after an edit, Django (7,083 files) | 88 ms median, 2.3 s for the first snapshot |
+| Feature matrix: CLI, hooks, MCP tools, agent self-test | 110 / 110 cases pass ([table](docs/feature-matrix.md)) |
+| Swarm with a 1.5B local model | 3 of 12 tasks verified. Too small to be useful. |
+
+The arena has no agent-vs-agent numbers yet. The only measured run uses a local 1.5B model, which solved
+0 of 5 attempts ([report](docs/img/arena-report.png)).
+
+## How it fits together
 
 ```mermaid
 flowchart LR
     A[Claude Code / Codex / OpenCode] -- hooks --> H[keelyard hook]
     A -- MCP stdio --> M[keelyard mcp]
-    H --> P[Proof gate]
-    H --> R[Rewind: shadow git]
-    H --> F[Output filters]
-    M --> S[Helper swarm]
-    M --> C[outline / map / find_symbol]
-    M --> Mem[Memory: SQLite FTS5]
-    P --> Rep[report.html]
-    Bench[arena + bench] --> Res[measured reports]
+    H --> P[proof gate]
+    H --> R[snapshots in .keelyard/shadow.git]
+    H --> F[output filters]
+    M --> P
+    M --> R
+    M --> C[map, outline, find_symbol]
+    M --> Mem[memory: SQLite FTS5]
+    M --> S[swarm + verifier]
 ```
 
-## What it does
+Everything runs locally. Nothing sits between you and your model provider, so subscription plans work
+the same way as API keys.
 
-| | Problem | What keelyard does |
-|---|---|---|
-| **Proof** | The agent says "done", but nothing was run | A Stop-hook gate: if files changed, the agent can't finish without a requirement checklist, a passing test run after its last edit and, for web apps, a screenshot. You get a self-contained HTML report. |
-| **Rewind** | It deleted the wrong thing three steps ago | A snapshot after every edit or shell call, kept in a separate shadow git repo (your `.git` is never touched). `rewind`, `fork` and diff by step, in a TUI or over MCP. |
-| **Saver** | Logs and repeat reads eat the context window | Command-aware filters for git, pytest, cargo/go/jest, grep, find and ruff/eslint/mypy that keep every failure and drop the noise. Claude Code's `PostToolUse` swaps in the filtered result, and the raw output stays one `keelyard recall <id>` away. Repeat reads of unchanged files are blocked until the next compaction. |
-| **Structure first** | The agent reads 3,000 lines to find one function | `project_map`, `outline` (signatures with line numbers) and `find_symbol` over MCP |
-| **Swarm** | Bulk reading on an expensive model | Fans read/summarise/draft tasks out to many cheap or local model calls. Answers must cite `path:line` (checked); patches must pass `git apply --check` and are never applied automatically. |
-| **Memory** | Last week's fix lives in another agent's history | Indexes Claude Code, Codex and OpenCode transcripts (secrets redacted) in local SQLite FTS5 and returns short snippets under a budget |
-| **Usage** | "Where did my limit go?" | Per day, model or agent token totals from all three agents' local logs; cost only from prices you configure |
-| **Arena** | "Which agent and model is actually better at *my* task?" | Runs one task across agents and models in fresh copies and measures pass rate, time, tokens and cost. Writes `results.json`, `report.html` and `chart.png`. |
+## Docs
 
-<p align="center"><img src="docs/img/proof-report.png" width="640" alt="Proof report generated by the demo"></p>
-
-## Install
-
-```bash
-pip install git+https://github.com/akobirjontulqinovfuture/keelyard     # PyPI release pending
-cd your-project
-keelyard install claude      # .claude/settings.json hooks + .mcp.json
-keelyard install codex       # .codex/hooks.json (approve with /hooks) + MCP snippet for ~/.codex/config.toml
-keelyard install opencode    # .opencode/plugin/keelyard.js + opencode.json
-```
-
-Installs are idempotent and merge with your existing config. Settings live in `.keelyard/config.toml`.
-That directory git-ignores itself.
-
-## Try it
-
-```bash
-bash examples/demo.sh        # replays real Claude Code hook payloads in a throwaway repo
-```
-
-In the demo, the "agent" edits code and deletes the tests, and the gate blocks it from stopping. You rewind
-just the deletion, then record proof, and the gate opens and writes the report shown above.
-
-```text
-keelyard x -- pytest -v              # run anything with command-aware filtering
-keelyard outline src/app.py          # signatures + line numbers
-keelyard map | keelyard sym parse_config
-keelyard timeline -i                 # TUI: enter = diff, r = rewind
-keelyard rewind 7 | keelyard fork 7 ../try-b
-keelyard usage --by model
-keelyard mem ingest && keelyard mem search "stripe webhook signature"
-keelyard arena run examples/arena/discount/task.toml
-keelyard bench
-```
-
-MCP tools: `proof_requirements` `proof_check` `proof_run_tests` `proof_screenshot` `proof_status`
-`rewind_list` `rewind_diff` `rewind_to` `read_file` `run_compact` `recall` `outline` `project_map`
-`find_symbol` `route_task` `swarm` `swarm_verify` `memory_search` `usage_report`.
-
-## Measured, not claimed
-
-Every number below was produced by a script in this repo, on an 8-core Linux box without a GPU, on 2026-10-12.
-Tokens are approximate (`chars/4`) and only meant for comparison. Methods and raw data: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
-
-**Head-to-head with rtk 0.51.0** on the same 8 real commands ([bench/vs_rtk.py](bench/vs_rtk.py)). "Facts kept" means
-the share of failing test ids, assertion lines, changed paths, grep hits and lint locations from the raw output that
-are still present after filtering.
-
-<p align="center"><img src="docs/img/vs-rtk.png" width="760" alt="keelyard vs rtk: tokens and facts kept"></p>
-
-| | raw | keelyard | rtk |
-|---|---|---|---|
-| tokens (8 commands) | 56,522 | 5,901 | 5,747 |
-| commands with 100% facts kept | n/a | 8/8 | 6/8 (ruff 24%, pytest 71%) |
-
-The token savings are about even. The difference is that keelyard kept everything the agent needs to act.
-That is a small sample, and rtk covers far more commands (100+ vs our 8 families), so read it as
-"comparable savings, stricter about keeping information", not as a general win.
-
-| Other measurements | Result |
-|---|---|
-| Filter on 6 real build/test logs (`bench/corpus`) | −52.1% tokens overall; −90% git clone, −64% failing pytest, no gain on short logs |
-| Snapshot after a one-file edit | 11 ms median (36 files); 72 ms median (Django, 7,083 files; first snapshot 2.1 s) |
-| Swarm with a 1.5B local model on CPU | 3/12 tasks verified; 0/8 answers cited correctly, and the verifier flagged all of them. Use a 7B+ or hosted cheap model. |
-| Swarm fan-out (mock server) | 200 tasks under a concurrency cap of 50; 20/20 planted bad citations caught |
-
-Not measured yet: read-dedupe and memory savings on real transcripts (the build box had none; run `keelyard bench` on
-yours), and Arena on real agents (it needs logged-in CLIs; the pipeline itself is tested with scripted agents).
-
-## Verified vs not verified
-
-- **Verified by the test suite (32 tests):** Claude Code hook JSON in and out through the real CLI, including
-  `PostToolUse` output replacement; the MCP stdio server driven by the official MCP client; snapshot, rewind and fork;
-  the proof gate lifecycle; filters; outline and symbol lookup; usage and transcript parsing for all three agents
-  (fixtures shaped like their formats); the arena pipeline; installers.
-- **Not yet verified against live agents:** Codex hooks (they use the Claude-compatible `hooks.json` format) and the
-  OpenCode plugin API (`tool.execute.*`, `session.idle`). Real Arena runs also wait on logged-in agent CLIs.
-
-## Security
-
-Local-first. Secrets are redacted before anything is stored or sent to a helper model, `memory.db` is mode 600,
-commands run without a shell, `read_file` can't leave the project, swarm patches are never auto-applied, and a failing
-hook never breaks the agent. See [SECURITY.md](SECURITY.md).
-
-## Credits
-
-The filters, structure-first reading and usage report build on ideas from
-[rtk](https://github.com/rtk-ai/rtk), [repomix](https://github.com/yamadashy/repomix),
-[claude-context-optimizer](https://github.com/AzozzALFiras/claude-context-optimizer),
-[ccusage](https://github.com/ccusage/ccusage) and [tokensave](https://github.com/aovestdipaperino/tokensave).
-They are reimplemented here, with no code copied. See [NOTICE](NOTICE).
+The [documentation site](docs/index.md) has a page for each module, the CLI and MCP reference, the
+config file, and troubleshooting. Build it with `pip install mkdocs-material && mkdocs serve`.
 
 ## Contributing
 
-Contributions are welcome, especially new agent adapters, filters backed by real output samples, and benchmark
-runs on your machine. See [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[good first issues](https://github.com/akobirjontulqinovfuture/keelyard/labels/good%20first%20issue).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Issues labelled `good first issue` are small and come
+with pointers. Real command logs for the filter corpus are especially welcome. To report a security
+problem, see [SECURITY.md](SECURITY.md).
 
-## License
-
-Apache-2.0
+Apache-2.0. Prior art and third-party licenses (the Geist fonts are OFL-1.1) are listed in [NOTICE](NOTICE).

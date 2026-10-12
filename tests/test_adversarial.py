@@ -276,3 +276,53 @@ def test_memory_snippets_keep_code_intact(tmp_path):
     m = Memory(tmp_path / "m.db")
     m._add(Turn("codex", "s", "/p", "2026", "assistant", "always use round(x, 2) for money"))
     assert "round(x, 2)" in m.search("round")[0]["snippet"]
+
+
+def test_detects_pytest_from_root_level_test_files(tmp_path):
+    from keelyard.proof import detect_test_cmd
+
+    (tmp_path / "test_cart.py").write_text("")
+    assert "pytest" in detect_test_cmd(tmp_path)
+    assert detect_test_cmd(tmp_path / "missing") == ""
+
+
+def test_force_color_zero_means_plain_output(project):
+    env = {**os.environ, "FORCE_COLOR": "0"}
+    env.pop("NO_COLOR", None)
+    p = subprocess.run([sys.executable, "-m", "keelyard.cli", "init", "--no-agents"], capture_output=True, text=True, cwd=project, env=env)
+    assert p.returncode == 0 and "\x1b[" not in p.stdout
+
+
+def test_toml_snippet_is_printed_verbatim(project):
+    p = subprocess.run([sys.executable, "-m", "keelyard.cli", "install", "codex"], capture_output=True, text=True, cwd=project)
+    assert "[mcp_servers.keelyard]" in p.stdout
+
+
+def test_mcp_config_uses_the_raw_executable_path(project, monkeypatch, tmp_path):
+    from keelyard.adapters import install as inst
+
+    exe = str(tmp_path / "my tools" / "keelyard")
+    monkeypatch.setattr(inst.shutil, "which", lambda _: exe)
+    inst.install("claude", project)
+    inst.install("opencode", project)
+    assert json.loads((project / ".mcp.json").read_text())["mcpServers"]["keelyard"]["command"] == exe
+    assert json.loads((project / "opencode.json").read_text())["mcp"]["keelyard"]["command"][0] == exe
+    snippet = "\n".join(inst.install("codex", project))
+    assert f'command = "{exe}"' in snippet
+
+
+def test_mcp_tool_error_reaches_agent_with_hint(tmp_path, monkeypatch):
+    """Bug: on mcp 2.x a ValueError became 'Error executing tool recall' with no hint, plus a traceback on stderr."""
+    import asyncio
+
+    from keelyard import mcp_server
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    try:
+        res = asyncio.run(mcp_server.mcp.call_tool("recall", {"output_id": "nope"}))
+        text = str(res)
+    except Exception as exc:  # 2.x raises ToolError to the session layer
+        assert "Unexpected" not in type(exc).__name__
+        text = str(exc)
+    assert "Hint" in text

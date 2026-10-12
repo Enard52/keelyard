@@ -30,7 +30,9 @@ def detect_test_cmd(root: Path) -> str:
         return "cargo test"
     if (root / "go.mod").exists():
         return "go test ./..."
-    if (root / "tests").is_dir() or (root / "pytest.ini").exists() or (root / "pyproject.toml").exists():
+    markers = ("pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini", "conftest.py")
+    if ((root / "tests").is_dir() or (root / "test").is_dir() or any((root / m).exists() for m in markers)
+            or any(root.glob("test_*.py")) or any(root.glob("*_test.py"))):
         py = "python" if shutil.which("python") else "python3"
         return f"{py} -m pytest -q"
     return ""
@@ -45,6 +47,7 @@ class Bundle:
     test_runs: list[dict] = field(default_factory=list)
     screenshots: list[dict] = field(default_factory=list)
     blocks: int = 0
+    gate: list[dict] = field(default_factory=list)  # every Stop decision: {"ts", "blocked", "open"}
 
 
 class Proof:
@@ -105,7 +108,8 @@ class Proof:
             raise ValueError("phase must be 'before' or 'after'")
         cmd = cmd or self.opts.get("test_cmd") or detect_test_cmd(self.cfg.root)
         if not cmd:
-            raise ValueError("no test command; set [proof].test_cmd in .keelyard/config.toml")
+            raise ValueError("no test command found for this project. "
+                             "Hint: pass --cmd \"npm test\" (MCP: command=...) or set [proof].test_cmd in .keelyard/config.toml")
         t0 = time.time()
         try:
             p = subprocess.run(shlex.split(cmd, posix=os.name != 'nt'), cwd=self.cfg.root, capture_output=True, text=True, timeout=timeout)
@@ -154,19 +158,19 @@ class Proof:
             return [f"Requirement #{r['id']} not verified: {r['text']}" for r in b.requirements if not r["done"]]
         gaps = []
         if not b.requirements:
-            gaps.append("No requirement checklist. Call proof_requirements with the user's asks, one per item.")
+            gaps.append("No requirement checklist yet (proof_requirements, or `keelyard proof add`).")
         for r in b.requirements:
             if not r["done"]:
                 gaps.append(f"Requirement #{r['id']} not verified: {r['text']}")
         after = [t for t in b.test_runs if t["phase"] == "after" and t["ts"] >= last_edit]
         if not after:
-            gaps.append("No test run after your last edit. Call proof_run_tests with phase='after'.")
+            gaps.append("No test run after the last edit (proof_run_tests phase='after', or `keelyard proof test after`).")
         elif after[-1]["exit"] != 0:
-            gaps.append(f"Latest test run failed (exit {after[-1]['exit']}). Fix it or explain in a requirement.")
+            gaps.append(f"The last test run failed with exit {after[-1]['exit']}. Fix it, then run the tests again.")
         if self.opts.get("app_url"):
             shots = [s for s in b.screenshots if s["ts"] >= last_edit]
             if not shots:
-                gaps.append("No screenshot of the running app since your last edit. Call proof_screenshot.")
+                gaps.append("No screenshot of the running app since the last edit (proof_screenshot, or `keelyard proof shot`).")
         return gaps
 
 

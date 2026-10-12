@@ -120,9 +120,14 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
         gaps = pf.missing()
         report = render(pf)
         opts = cfg.section("proof")
+        b = pf.load()
+        if pf.last_edit_ts() is not None or b.requirements:
+            b.gate.append({"ts": time.time(), "blocked": bool(gaps and opts["gate"] and b.blocks < int(opts["max_blocks"])),
+                           "open": len(gaps)})
+            b.gate = b.gate[-50:]
+            pf.save(b)
         if not gaps or not opts["gate"]:
             return None
-        b = pf.load()
         if b.blocks >= int(opts["max_blocks"]):
             return {"systemMessage": f"keelyard: proof incomplete after {b.blocks} reminders; see {report}"}
         b.blocks += 1

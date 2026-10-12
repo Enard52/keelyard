@@ -1,11 +1,13 @@
 // keelyard adapter for OpenCode. Installed to .opencode/plugin/keelyard.js by `keelyard install opencode`.
 // Translates OpenCode plugin events into keelyard's shared hook format.
+const KEELYARD = "keelyard"; // replaced with the absolute path by `keelyard install opencode`
+
 export const Keelyard = async ({ $, directory, client }) => {
   const pending = new Map();
   const hook = async (event, payload) => {
     const body = JSON.stringify({ ...payload, cwd: directory });
     try {
-      const out = await $`keelyard hook opencode ${event} < ${new Response(body)}`.quiet().nothrow().text();
+      const out = await $`${KEELYARD} hook opencode ${event} < ${new Response(body)}`.quiet().nothrow().text();
       return out.trim() ? JSON.parse(out) : null;
     } catch {
       return null; // never break the agent

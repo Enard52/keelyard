@@ -240,16 +240,17 @@ def do_init(a):
 
     root = config.find_root()
     found = detect()
-    agents = a.agent or ([] if a.no_agents else [x for x in AGENTS if x in found])
+    agents = a.agent or ([] if a.no_agents else [x for x in AGENTS if x in found or installed(x, root)])
     data = {"root": str(root), "detected": found, "agents": agents, "dry_run": a.dry_run, "changed": [], "snapshot": None}
     h = _human(a)
     if h:
         ui.heading("keelyard init", str(root))
         if not (root / ".git").exists():
             ui.out.print("  [warn]not a git repository; keelyard still works here.[/]")
-        ui.out.print("\n  [muted]agents on this machine[/]")
-        for x in AGENTS:
-            ui.line("ok" if x in found else "skip", x, found.get(x, "not found"))
+        if not a.agent:
+            ui.out.print("\n  [muted]agents on this machine[/]")
+            for x in AGENTS:
+                ui.line("ok" if x in found else "skip", x, found.get(x, "not found"))
     if a.dry_run:
         data["changed"] = [".keelyard/config.toml"] + [f"wire {x}" for x in agents]
         if h:
@@ -268,11 +269,22 @@ def do_init(a):
         items = install(x, root)
         data["changed"] += [f"{x}: {i.splitlines()[0]}" for i in items]
         if h:
-            for n, item in enumerate(items):
-                first, *rest = item.splitlines()
-                ui.line("ok", x if n == 0 else "", first + (" (updated)" if was and n == 0 else ""))
-                for r in rest:
-                    ui.out.print(f"      [muted]{r}[/]")
+            short = []
+            for i in items:
+                first = i.splitlines()[0]
+                if " (" not in first:
+                    continue
+                path, label = first.split(" (", 1)
+                label = label.rstrip(")").split(";")[0]
+                short.append(path if label == "keelyard section" else label)
+            ui.line("ok", x, ("updated: " if was else "") + ", ".join(dict.fromkeys(short)))
+            for i in items:
+                if "\n" in i:
+                    for r in i.splitlines():
+                        ui.out.print("      ", end="")
+                        ui.out.print(r, style="muted", markup=False)
+            if x == "codex":
+                ui.out.print("      [muted]then run /hooks once inside Codex to trust the new hooks[/]")
     if not agents and h:
         ui.line("skip", "agents", "none wired; run `keelyard install <agent>` later")
     step = Shadow(config.load(root)).snapshot("baseline", note="keelyard init")
@@ -282,8 +294,6 @@ def do_init(a):
         if step and step.skipped:
             ui.line("warn", "skipped", f"{len(step.skipped)} files over [rewind].max_file_mb")
         ui.out.print("\n  next: start your agent as usual, then run [key]keelyard status[/].")
-        if "codex" in agents:
-            ui.out.print("  codex: run [key]/hooks[/] once inside Codex to trust the new hooks.")
     return 0, data
 
 
@@ -417,18 +427,21 @@ def do_status(a):
                          f"{n} file{'s' * (n != 1)}")
         else:
             ui.out.print("  [muted]timeline[/]  no snapshots yet")
+        blocked = sum(bool(g.get("blocked")) for g in b.gate)
+        times = "once" if blocked == 1 else f"{blocked} times"
         ui.out.print("  [muted]proof[/]     " + ("[ok]proven[/]" if not gaps else f"[warn]{len(gaps)} open[/]")
+                     + (f" · the gate stopped the agent {times}" if blocked else "")
                      + (f" [muted]· session {sid}[/]" if sid != "default" else ""))
         if b.task:
             ui.out.print("  [muted]task[/]      ", end="")
-            ui.plain(textwrap.shorten(b.task, 72))
+            ui.plain(textwrap.shorten(b.task, 72, placeholder=" …"))
         if b.requirements or gaps:
             ui.out.print()
         for r in b.requirements:
-            ui.line("ok" if r["done"] else "skip", f"{r['id']}. {textwrap.shorten(r['text'], 60)}", width=0)
+            ui.line("ok" if r["done"] else "skip", f"{r['id']}. {textwrap.shorten(r['text'], 60, placeholder=' …')}", width=0)
         for g in gaps:
             if not g.startswith("Requirement #"):
-                ui.line("warn", textwrap.shorten(g, 80), width=0)
+                ui.line("warn", textwrap.shorten(g, 80, placeholder=" …"), width=0)
     return 0, data
 
 
@@ -463,8 +476,13 @@ def do_rewind(a):
             if t.date() != day:
                 day = t.date()
                 ui.out.print(f"[muted]{day:%a %d %b}[/]")
-            files = ", ".join(s.files[:3]) + (f"  +{len(s.files) - 3}" if len(s.files) > 3 else "")
-            tool = f"[muted]{s.tool:<10}[/]" if s.tool in quiet else f"{s.tool:<10}"
+            room = max(20, ui.out.width - 36)
+            files = ", ".join(s.files[:3])
+            more = f"  +{len(s.files) - 3}" if len(s.files) > 3 else ""
+            if len(files) + len(more) > room:
+                files = files[: max(0, room - len(more) - 1)] + "…"
+            files += more
+            tool = f"[muted]{s.tool:<12}[/]" if s.tool in quiet else f"{s.tool:<12}"
             ui.out.print(f"  [key]#{s.step:<4}[/][muted]{t:%H:%M:%S}[/]  {tool}  ", end="")
             ui.plain(files)
         ui.out.print("[muted]show a step: keelyard rewind show <n> · go back: keelyard rewind to <n>[/]")
@@ -718,7 +736,8 @@ def do_install(a):
             first, *rest = item.splitlines()
             ui.line("ok", a.agent if n == 0 else "", first)
             for r in rest:
-                ui.out.print(f"      [muted]{r}[/]")
+                ui.out.print("      ", end="")
+                ui.out.print(r, style="muted", markup=False)
     return 0, {"agent": a.agent, "action": a.cmd, "changed": done}
 
 

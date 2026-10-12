@@ -21,8 +21,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 CART = "def total(prices, discount=0):\n    return sum(prices)\n"
-TEST = ("from cart import total\n\n\ndef test_sum():\n    assert total([1, 2]) == 3\n\n\n"
-        "def test_discount():\n    assert total([10, 10], discount=0.1) == 18\n")
+# plain asserts, so the self-test needs nothing but Python (no pytest in a fresh install)
+TEST = ("from cart import total\n\n"
+        "assert total([1, 2]) == 3, 'sum'\n"
+        "assert total([10, 10], discount=0.1) == 18, 'discount'\n"
+        "print('2 checks passed')\n")
 FIXED = "def total(prices, discount=0):\n    return round(sum(prices) * (1 - discount), 2)\n"
 
 
@@ -62,14 +65,14 @@ def _setup(tmp: Path, port: int) -> tuple[Path, dict]:
     proj = tmp / "shop"
     proj.mkdir()
     (proj / "cart.py").write_text(CART)
-    (proj / "test_cart.py").write_text(TEST)
+    (proj / "check_cart.py").write_text(TEST)
     env = {**os.environ, "HOME": str(tmp / "home"), "XDG_DATA_HOME": str(tmp / "xdg"), "KEELYARD_ROOT": str(proj),
            "CLAUDE_CONFIG_DIR": str(tmp / "home" / ".claude"), "CODEX_HOME": str(tmp / "home" / ".codex"),
            "GIT_CONFIG_NOSYSTEM": "1", "NO_COLOR": "1"}
     subprocess.run(["git", "init", "-q"], cwd=proj, check=True, env=env)
     (proj / ".keelyard").mkdir()
     (proj / ".keelyard" / "config.toml").write_text(
-        f'[proof]\ntest_cmd = "{Path(sys.executable).as_posix()} -m pytest -q -p no:cacheprovider"\n'
+        f'[proof]\ntest_cmd = "{Path(sys.executable).as_posix()} check_cart.py"\n'
         f'[models.cheap]\nprovider = "openai"\nbase_url = "http://127.0.0.1:{port}/v1"\nmodel = "stub"\n')
     # a past session for memory_search to find
     past = tmp / "home" / ".claude" / "projects" / "shop"
@@ -167,8 +170,8 @@ async def _agent(proj: Path, env: dict, rep: Report) -> None:
               f"exit {run['exit']}, report {Path(st['report']).name}", t0)
 
         t0 = time.perf_counter()
-        noisy = await call("run_compact", {"command": f"{sys.executable} -m pytest -v -p no:cacheprovider"})
-        check("context: run_compact output", noisy["exit"] == 0 and "passed" in noisy["output"], f"{len(noisy['output'])} chars", t0)
+        noisy = await call("run_compact", {"command": f"{sys.executable} check_cart.py"})
+        check("context: run_compact output", noisy["exit"] == 0 and "2 checks passed" in noisy["output"], f"{len(noisy['output'])} chars", t0)
 
 
 def run(keep: bool = False) -> Report:

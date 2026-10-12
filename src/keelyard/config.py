@@ -22,8 +22,9 @@ app_url = ""
 max_blocks = 3
 
 [rewind]
-max_file_mb = 20             # larger files are left out of snapshots (listed as skipped)
 enabled = true
+# Files larger than this are left out of snapshots and listed as skipped.
+max_file_mb = 20
 # Tools that trigger a snapshot after they run.
 snapshot_tools = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "apply_patch", "write", "edit", "bash", "patch"]
 

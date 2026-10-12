@@ -20,8 +20,10 @@ THEME = Theme({
 })
 
 _no_color = bool(os.environ.get("NO_COLOR"))
-out = Console(theme=THEME, highlight=False, no_color=_no_color, soft_wrap=True)
-err = Console(theme=THEME, highlight=False, no_color=_no_color, stderr=True)
+# rich treats any FORCE_COLOR value as "force", but FORCE_COLOR=0 means the opposite in most tools
+_force = False if os.environ.get("FORCE_COLOR") in ("0", "false") else None
+out = Console(theme=THEME, highlight=False, no_color=_no_color, soft_wrap=True, force_terminal=_force)
+err = Console(theme=THEME, highlight=False, no_color=_no_color, stderr=True, force_terminal=_force)
 
 OK, BAD, WARN, DOT = "✓", "✗", "!", "·"
 if not (sys.stdout.encoding or "").lower().startswith("utf"):

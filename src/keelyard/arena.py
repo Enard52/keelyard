@@ -119,9 +119,13 @@ def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None) -> l
                 except subprocess.TimeoutExpired:
                     code, out, note = 124, "", f"timeout {timeout}s"
                 secs = time.time() - t0
-                chk = subprocess.run(task["check"], shell=True, cwd=repo, capture_output=True, text=True, timeout=600)
+                try:
+                    chk = subprocess.run(task["check"], shell=True, cwd=repo, capture_output=True, text=True, timeout=600)
+                    check_ok = chk.returncode == 0
+                except subprocess.TimeoutExpired:
+                    check_ok, note = False, (note + "; " if note else "") + "check timed out"
                 u = parse_usage(out)
-                results.append(Run(agent["name"], agent.get("model", ""), i, chk.returncode == 0, round(secs, 1),
+                results.append(Run(agent["name"], agent.get("model", ""), i, check_ok, round(secs, 1),
                                    u["input"], u["output"], u["cache_read"],
                                    round(u["cost"], 4) if u["cost"] is not None else None, _changed(repo), code, note))
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -162,48 +166,82 @@ def _fmt(v, kind="int"):
     return f"{int(v):,}"
 
 
+ARENA_CSS = """
+.runs{display:inline-flex;gap:3px;vertical-align:middle}.runs i{width:9px;height:9px;border-radius:2px;background:var(--line)}
+.runs i.p{background:var(--green)}.runs i.f{background:var(--red)}
+.who b{font-weight:500;display:block}.who span{font:12px 'Geist Mono',monospace;color:var(--muted)}
+.bar{height:6px;border-radius:3px;background:var(--ink);opacity:.85;margin-top:6px}
+.meta{display:grid;grid-template-columns:120px 1fr;gap:6px 16px;font-size:14px;margin-top:26px}
+.meta dt{color:var(--muted)}.meta dd{margin:0}
+"""
+
+
 def render(out_dir: Path) -> Path:
+    from . import __version__
+    from .theme import page
+
     data = json.loads((out_dir / "results.json").read_text())
-    rows = summarize(data["runs"])
+    runs = data["runs"]
+    rows = sorted(summarize(runs), key=lambda r: (-r["pass_rate"], (r["median_input"] or 0) + (r["median_output"] or 0)))
     e = html.escape
+    task = data["task"]
     maxtok = max([(r["median_input"] or 0) + (r["median_output"] or 0) for r in rows] + [1])
-    bars = []
-    for i, r in enumerate(rows):
+    body = [f"<style>{ARENA_CSS}</style><div class=brand><i></i>keelyard arena</div><h1>{e(task['name'])}</h1>",
+            f"<dl class=meta><dt>Prompt</dt><dd>{e(task['prompt'])}</dd><dt>Pass if</dt><dd><code>{e(task['check'])}</code> exits 0</dd>"
+            f"<dt>Runs</dt><dd>{len(runs)} total, a fresh copy of the repo each time</dd><dt>Generated</dt><dd>{e(data['generated'])}</dd></dl>",
+            "<h2>Results</h2><div class=box><table><tr><th>Contender</th><th>Passed</th><th class=n>Median time</th>"
+            "<th class=n>Tokens in / out</th><th class=n>Cost</th></tr>"]
+    for r in rows:
+        mine = [x for x in runs if x["agent"] == r["agent"] and x["model"] == r["model"]]
+        dots = "".join(f"<i class={'p' if x['passed'] else 'f'}></i>" for x in mine if x["run"])
         tok = (r["median_input"] or 0) + (r["median_output"] or 0)
-        w = 520 * tok / maxtok
-        y = 20 + i * 34
-        bars.append(f"<text x='0' y='{y + 16}' font-size='12'>{e(r['agent'])}</text>"
-                    f"<rect x='160' y='{y}' width='{w:.0f}' height='22' rx='4' fill='{'#2f6f4f' if r['pass_rate'] >= .5 else '#a3402f'}'/>"
-                    f"<text x='{166 + w:.0f}' y='{y + 16}' font-size='12'>{_fmt(tok) if tok else 'n/a'} tok · {_fmt(r['pass_rate'], 'pct')} pass</text>")
-    svg = f"<svg width='860' height='{40 + 34 * len(rows)}' font-family='system-ui'>{''.join(bars)}</svg>"
-    trs = "".join(
-        f"<tr><td>{e(r['agent'])}</td><td>{e(r['model'])}</td><td>{r['runs']}</td><td>{_fmt(r['pass_rate'], 'pct')}</td>"
-        f"<td>{_fmt(r['median_seconds'], 's')}</td><td>{_fmt(r['median_input'])}</td><td>{_fmt(r['median_output'])}</td>"
-        f"<td>{_fmt(r['median_cache_read'])}</td><td>{_fmt(r['median_cost'], 'usd')}</td><td>{e(r['note'])}</td></tr>" for r in rows)
-    page = f"""<!doctype html><meta charset=utf-8><title>keelyard arena: {e(data['task']['name'])}</title>
-<style>body{{font:14px/1.5 system-ui;margin:40px auto;max-width:980px;color:#1d1d1b;background:#f6f5f2}}
-table{{border-collapse:collapse;width:100%;background:#fff}}td,th{{padding:6px 8px;border-bottom:1px solid #e4e2dc;text-align:left}}
-.muted{{color:#6b6a65}}</style>
-<h1>{e(data['task']['name'])}</h1><p class=muted>{e(data['task']['prompt'])}<br>check: <code>{e(data['task']['check'])}</code> · {e(data['generated'])}</p>
-<h2>Median tokens per run</h2>{svg}
-<h2>Results</h2><table><tr><th>agent</th><th>model</th><th>runs</th><th>pass</th><th>time</th><th>input</th><th>output</th><th>cache read</th><th>cost</th><th>note</th></tr>{trs}</table>
-<p class=muted>Tokens and cost are what each agent reported about itself; "n/a" means it reported nothing. Raw data: results.json.</p>"""
-    (out_dir / "report.html").write_text(page)
+        bar = f"<div class=bar style='width:{max(2, 100 * tok / maxtok):.0f}%'></div>" if tok else ""
+        passed = sum(x["passed"] for x in mine)
+        n_real = len([x for x in mine if x["run"]])
+        cell = (f"<span class=runs>{dots}</span>&nbsp; <span class=mono>{passed}/{n_real}</span>" if n_real
+                else f"<span style='color:var(--muted)'>{e(r['note'] or 'no runs')}</span>")
+        toks = f"{_fmt(r['median_input'])} / {_fmt(r['median_output'])}" if r["median_input"] is not None else "n/a"
+        cost = _fmt(r["median_cost"], "usd") if r["median_cost"] else ("$0" if r["median_cost"] == 0 else "n/a")
+        body.append(f"<tr><td class=who><b>{e(r['agent'])}</b><span>{e(r['model'])}</span></td><td>{cell}</td>"
+                    f"<td class=n>{_fmt(r['median_seconds'], 's') if n_real else ''}</td><td class=n style='min-width:170px'>{toks}{bar}</td>"
+                    f"<td class=n>{cost if n_real else ''}</td></tr>")
+    body.append("</table></div>")
+    body.append("<footer><span>Tokens and cost are what each contender reported about itself; n/a means it reported nothing. "
+                f"Raw data is in results.json.</span><span class=mono>keelyard {__version__}</span></footer>")
+    (out_dir / "report.html").write_text(page(f"Arena · {task['name']}", "".join(body)), encoding="utf-8")
     try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
-        fig, ax = plt.subplots(figsize=(8, 0.6 + 0.5 * len(rows)))
-        labels = [f"{r['agent']} ({_fmt(r['pass_rate'], 'pct')} pass)" for r in rows]
-        ax.barh(labels, [(r["median_input"] or 0) + (r["median_output"] or 0) for r in rows],
-                color=["#2f6f4f" if r["pass_rate"] >= .5 else "#a3402f" for r in rows])
-        ax.set_xlabel("median tokens per run (input + output)")
-        ax.set_title(data["task"]["name"])
-        fig.tight_layout()
-        fig.savefig(out_dir / "chart.png", dpi=150)
-        plt.close(fig)
+        _chart(rows, task["name"], out_dir / "chart.png")
     except ImportError:
         pass
     return out_dir / "report.html"
+
+
+def _chart(rows: list[dict], title: str, path: Path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib import font_manager
+
+    for f in font_manager.findSystemFonts():
+        if "Geist-" in f:
+            font_manager.fontManager.addfont(f)
+    plt.rcParams.update({"font.family": ["Geist", "DejaVu Sans"], "font.size": 10, "axes.edgecolor": "#E7E5E4",
+                         "axes.labelcolor": "#6B6B66", "xtick.color": "#6B6B66", "ytick.color": "#111111"})
+    rows = [r for r in rows if r["median_input"] is not None]
+    fig, ax = plt.subplots(figsize=(8, 0.9 + 0.55 * max(1, len(rows))), dpi=200)
+    fig.patch.set_facecolor("#FAFAF9")
+    ax.set_facecolor("#FAFAF9")
+    labels = [f"{r['agent']}  ({r['pass_rate'] * 100:.0f}% pass)" for r in rows][::-1]
+    vals = [(r["median_input"] or 0) + (r["median_output"] or 0) for r in rows][::-1]
+    colors = ["#1F6F4A" if r["pass_rate"] >= 0.5 else "#B42318" for r in rows][::-1]
+    ax.barh(labels, vals, color=colors, height=0.5)
+    for i, v in enumerate(vals):
+        ax.text(v, i, f"  {v:,.0f}", va="center", color="#111111", fontsize=9)
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    ax.set_xlabel("median tokens per run (input + output)")
+    ax.set_title(title, loc="left", fontsize=12, color="#111111", fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(path, facecolor=fig.get_facecolor())
+    plt.close(fig)

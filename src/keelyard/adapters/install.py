@@ -26,9 +26,14 @@ CODEX_EVENTS = {
 }
 
 
+def _exe_path() -> str:
+    """The keelyard executable, unquoted: for configs that exec a program directly (MCP)."""
+    return shutil.which("keelyard") or "keelyard"
+
+
 def _exe() -> str:
-    """The keelyard command as a shell-safe string (install paths may contain spaces)."""
-    exe = shutil.which("keelyard") or "keelyard"
+    """The keelyard command as a shell-safe string, for hook commands run by a shell (paths may contain spaces)."""
+    exe = _exe_path()
     if os.name == "nt":  # pragma: no cover
         return subprocess.list2cmdline([exe])
     return shlex.quote(exe)
@@ -187,17 +192,18 @@ def install(agent: str, root: Path) -> list[str]:
     done = []
     if agent == "claude":
         _merge_hooks(root / ".claude" / "settings.json", "claude", CLAUDE_EVENTS)
-        _merge_json(root / ".mcp.json", "mcpServers", "keelyard", {"command": _exe(), "args": ["mcp"]})
+        _merge_json(root / ".mcp.json", "mcpServers", "keelyard", {"command": _exe_path(), "args": ["mcp"]})
         done += [".claude/settings.json (hooks)", ".mcp.json (MCP server)"]
     elif agent == "codex":
         _merge_hooks(root / ".codex" / "hooks.json", "codex", CODEX_EVENTS)
         done.append(".codex/hooks.json (hooks; approve them in Codex with /hooks)")
-        done.append(f'add to ~/.codex/config.toml:\n[mcp_servers.keelyard]\ncommand = "{_exe()}"\nargs = ["mcp"]')
+        done.append(f'add to ~/.codex/config.toml:\n[mcp_servers.keelyard]\ncommand = {json.dumps(_exe_path())}\nargs = ["mcp"]')
     elif agent == "opencode":
         dest = root / ".opencode" / "plugin" / "keelyard.js"
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text())
-        _merge_json(root / "opencode.json", "mcp", "keelyard", {"type": "local", "command": [_exe(), "mcp"], "enabled": True})
+        js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text()
+        dest.write_text(js.replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(_exe_path())};", 1))
+        _merge_json(root / "opencode.json", "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
         done += [".opencode/plugin/keelyard.js (events)", "opencode.json (MCP server)"]
     return done + install_guides(agent, root)
 
