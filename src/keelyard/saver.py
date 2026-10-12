@@ -13,6 +13,7 @@ import os
 import re
 import shlex  # noqa: F401
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -108,7 +109,7 @@ class ReadCache:
         return json.loads(self.path.read_text()) if self.path.exists() else {}
 
     def _save(self, d: dict) -> None:
-        tmp = self.path.with_suffix(f".{os.getpid()}.tmp")
+        tmp = self.path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
         tmp.write_text(json.dumps(d))
         os.replace(tmp, self.path)  # atomic: concurrent hooks never see half a file
 

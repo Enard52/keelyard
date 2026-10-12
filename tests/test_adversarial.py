@@ -383,3 +383,36 @@ def test_join_and_split_round_trip(monkeypatch):
     monkeypatch.setattr(proc.os, "name", "nt")
     line = proc.join_cmd(argv)
     assert line == sp.list2cmdline(argv) and proc.split_cmd(line) == line
+
+
+def test_state_dir_creation_races_safely(tmp_path):
+    """Bug (Windows CI, flaky): two hooks creating .keelyard at once raised FileExistsError."""
+    (tmp_path / ".git").mkdir()
+    errors = []
+
+    def go():
+        try:
+            _ = config.load(tmp_path).state
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    threads = [threading.Thread(target=go) for _ in range(16)]
+    real_exists = Path.exists
+    barrier = threading.Barrier(16)
+
+    def slow_exists(self):
+        r = real_exists(self)
+        if self.name == ".gitignore" or self.name == ".keelyard":
+            try:
+                barrier.wait(timeout=2)
+            except threading.BrokenBarrierError:
+                pass
+        return r
+
+    Path.exists = slow_exists
+    try:
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+    finally:
+        Path.exists = real_exists
+    assert not errors

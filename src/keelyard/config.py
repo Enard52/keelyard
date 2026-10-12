@@ -111,8 +111,8 @@ class Config:
     @property
     def state(self) -> Path:
         d = self.root / ".keelyard"
-        if not d.exists():
-            d.mkdir(parents=True)
+        if not (d / ".gitignore").exists():
+            d.mkdir(parents=True, exist_ok=True)  # hooks race here; never fail on "already exists"
             # Never let agent state leak into the user's own commits.
             (d / ".gitignore").write_text("*\n")
         return d
