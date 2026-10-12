@@ -50,14 +50,24 @@ without reading it end to end.
 **Memory and usage.** One full-text index covers your past Claude Code, Codex and OpenCode sessions
 (`memory_search`). There is also a token and cost table built from local logs (`keelyard usage`).
 
-**Swarm and arena.** `swarm` hands bulk reading or drafting to a cheap model and checks every `path:line` it
-cites. `arena` runs one task across several agents and models and reports pass rate, time and tokens.
+**Always on.** keelyard does not wait to be called. At session start, and again after the context is compacted,
+the agent gets a short brief: the rules, open proof items, a project map and relevant notes from past sessions.
+Each prompt brings up to four matching snippets from earlier sessions in this project. Before a destructive
+command (`rm -rf`, `git reset --hard`, `DROP TABLE`, migrations) keelyard takes a snapshot and says which step
+restores it. Re-reading a file returns its outline or just the diff. Every hint has a token budget, a cooldown
+and a per-session cap. [How it works per agent](docs/guide/brain.md).
+
+**Swarm and arena.** `swarm_plan` splits a goal into one task per file, each with only the code it needs.
+`swarm` sends them to a cheap model and checks every answer: citations must exist, and patches must pass the
+tests in a throwaway copy. Failed answers are retried with the test output, sampled best-of-N, then escalated
+to a strong model if you set one. With no helper model, you get ready prompts for your agent's own subagents.
+`arena` runs one task across several agents and models and reports pass rate, time and tokens.
 
 ## For agents
 
 `keelyard init` writes everything an agent needs to find its way:
 
-- an MCP server with 20 tools. Each tool has a typed schema, an example in every parameter and JSON output.
+- an MCP server with 21 tools. Each tool has a typed schema, an example in every parameter and JSON output.
 - a short section in `CLAUDE.md` or `AGENTS.md` that describes the workflow
 - for Claude Code, a skill (`.claude/skills/keelyard`) and the slash commands `/keelyard:status`,
   `/keelyard:prove` and `/keelyard:undo`

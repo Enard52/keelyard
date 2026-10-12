@@ -119,9 +119,11 @@ async def _agent(proj: Path, env: dict, rep: Report) -> None:
         check("mcp: server starts and lists tools", len(tools) >= 18 and bool(init.instructions),
               f"{len(tools)} tools, all described" if described else "some tools lack descriptions")
         t0 = time.perf_counter()
-        _hook("SessionStart", {**base, "source": "startup"}, env, proj)
+        start = _hook("SessionStart", {**base, "source": "startup"}, env, proj) or {}
+        brief = start.get("hookSpecificOutput", {}).get("additionalContext", "")
         _hook("UserPromptSubmit", {**base, "prompt": "Make total() apply the discount."}, env, proj)
-        check("hooks: session start + prompt", (await call("status"))["steps"] == 1, "baseline snapshot taken", t0)
+        check("hooks: session start + prompt", (await call("status"))["steps"] == 1 and "keelyard brief" in brief,
+              f"baseline snapshot, {len(brief) // 4}-token brief injected", t0)
 
         t0 = time.perf_counter()
         req = await call("proof_requirements", {"items": ["total() applies the discount", "existing tests still pass"]})

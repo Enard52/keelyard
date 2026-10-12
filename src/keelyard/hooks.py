@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 import time
 import traceback
@@ -21,6 +22,30 @@ from .saver import ReadCache
 from .snapshot import Shadow
 
 EDIT_TOOLS_READ = {"Read", "read", "view"}
+EDIT_TOOLS_WRITE = {"Edit", "Write", "MultiEdit", "edit", "write", "patch", "apply_patch"}
+SHELL_TOOLS = {"Bash", "bash", "shell", "local_shell", "exec_command"}
+
+
+def _ctx(event: str, text: str, **extra) -> dict:
+    """Text the model reads on its next step (Claude Code / Codex additionalContext; OpenCode plugin queues it)."""
+    return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": text}, **extra}
+
+
+def _merge(a: dict | None, b: dict | None) -> dict | None:
+    if not a or not b:
+        return a or b
+    ha, hb = a.get("hookSpecificOutput", {}), b.get("hookSpecificOutput", {})
+    if "additionalContext" in ha and "additionalContext" in hb:
+        hb = {**hb, "additionalContext": ha["additionalContext"] + "\n" + hb["additionalContext"]}
+    return {**a, **b, "hookSpecificOutput": {**ha, **hb}}
+
+
+def _edited_files(tin: dict) -> list[str]:
+    f = _file_arg(tin)
+    if f:
+        return [f]
+    patch = tin.get("patch") or tin.get("input") or ""
+    return re.findall(r"^\*\*\* (?:Update|Add) File: (.+)$", patch, re.M) if isinstance(patch, str) else []
 
 
 def _file_arg(tool_input: dict) -> str | None:
@@ -54,6 +79,20 @@ def _filter_bash(cfg: config.Config, tin: dict, resp) -> dict | None:
         "stdout": small + note, "stderr": "", "interrupted": bool(resp.get("interrupted")), "isImage": False}}}
 
 
+def _ingest_memory(cfg: config.Config, every_s: int = 600) -> None:
+    """Keep the memory index fresh for UserPromptSubmit recall: incremental, at most every 10 minutes."""
+    mark = cfg.state / "memory.ingested"
+    try:
+        if mark.exists() and time.time() - mark.stat().st_mtime < every_s:
+            return
+        mark.touch()
+        from .memory import Memory
+
+        Memory().ingest()
+    except Exception:  # noqa: BLE001 - memory is a bonus
+        pass
+
+
 def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
     sid = session.set_current(cfg, payload.get("session_id") or payload.get("sessionID"))
     tool = payload.get("tool_name") or payload.get("tool") or ""
@@ -61,15 +100,68 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
     rew = cfg.section("rewind")
     sav = cfg.section("saver")
 
+    brain = cfg.section("brain")
+
     if event == "SessionStart":
         if payload.get("source") in ("compact", "clear"):
             ReadCache(cfg, sid).reset()
-        if rew["enabled"]:
+        if rew["enabled"] and payload.get("source") not in ("compact",):
             Shadow(cfg).snapshot(tool="baseline", session=sid)
+        if brain["brief"]:
+            from .brain import brief
+
+            task = Proof(cfg, sid).load().task
+            head = "keelyard brief (re-sent after compaction)" if payload.get("source") == "compact" else "keelyard brief"
+            return _ctx("SessionStart", f"[{head}]\n" + brief(cfg, sid, query=task))
         return None
 
     if event == "UserPromptSubmit":
-        Proof(cfg, sid).set_task(payload.get("prompt", ""))
+        prompt = payload.get("prompt", "")
+        Proof(cfg, sid).set_task(prompt)
+        notes = []
+        if brain["recall"]:
+            from .brain import recall
+
+            r = recall(cfg, prompt, exclude_session=sid)
+            if r:
+                notes.append(r)
+        from .brain import Nudger, budget_nudge
+
+        b = budget_nudge(cfg, payload)
+        if b and Nudger(cfg, sid).allow("budget"):
+            notes.append(b)
+        return _ctx("UserPromptSubmit", "\n\n".join(notes)) if notes else None
+
+    if event == "PreToolUse" and tool in SHELL_TOOLS:
+        from .brain import Nudger, destructive
+
+        cmd = tin.get("command") or tin.get("cmd") or ""
+        cmd = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
+        kind = destructive(cmd)
+        if not kind:
+            return None
+        step = None
+        if rew["enabled"]:
+            sh = Shadow(cfg)
+            step = sh.snapshot(tool="pre-destructive", session=sid) or (sh.steps() or [None])[-1]
+        where = f" Snapshot #{step.step} was taken first; `keelyard rewind to {step.step}` restores the files." \
+            if step else ""
+        if not Nudger(cfg, sid).allow("destructive", kind):
+            return None
+        msg = f"keelyard: `{kind}` is destructive.{where} Prefer a narrower command if you can."
+        return _ctx("PreToolUse", msg, systemMessage=msg)
+
+    if event == "PreToolUse" and tool in EDIT_TOOLS_WRITE:
+        from .brain import Nudger, has_tests_nearby
+
+        for f in _edited_files(tin):
+            try:
+                rel = ReadCache(cfg, sid).resolve(f).relative_to(cfg.root).as_posix()
+            except (PermissionError, ValueError):
+                continue
+            if not has_tests_nearby(cfg.root, rel) and Nudger(cfg, sid).allow("no-tests", rel):
+                return _ctx("PreToolUse", f"keelyard: no tests found for {rel}. Add or point to a test that covers "
+                                          "this change, so proof_run_tests can show it works.")
         return None
 
     if event == "PreCompact":
@@ -87,12 +179,24 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
             return None
         prev = rc.seen(p)
         if prev and p.is_file():
+            def deny(reason: str) -> dict:
+                return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                               "permissionDecisionReason": reason}}
             if hashlib.sha256(p.read_bytes()).hexdigest()[:16] == prev["sha"]:
-                return {"hookSpecificOutput": {
-                    "hookEventName": "PreToolUse", "permissionDecision": "deny",
-                    "permissionDecisionReason": (f"keelyard: {f} is unchanged since you read it this session; "
-                                                 "use the content already in your context. If it was compacted away, "
-                                                 "read with an offset/limit or call the keelyard read_file tool with force=true.")}}
+                from .brain import _cap
+                from .codemap import outline
+
+                try:
+                    ol = _cap(outline(p), 300)
+                except Exception:  # noqa: BLE001
+                    ol = ""
+                return deny(f"keelyard: {f} is unchanged since you read it this session; use the copy in your context."
+                            + (f"\nOutline, to find your place:\n{ol}" if ol.strip() else "")
+                            + "\nIf it was compacted away, read with an offset/limit or keelyard read_file force=true.")
+            text = rc.read(str(p))  # changed: returns a diff when that is much smaller than the file
+            if text.startswith("[keelyard]") and "diff only" in text:
+                return deny(text.replace("[keelyard]", "keelyard:", 1)
+                            + "\n(The diff is the whole change. Read with an offset/limit for full lines.)")
         return None
 
     if event == "PostToolUse":
@@ -116,6 +220,8 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
     if event == "Stop":
         if rew["enabled"]:
             Shadow(cfg).snapshot(tool="stop", session=sid)
+        if brain["recall"]:
+            _ingest_memory(cfg)
         pf = Proof(cfg, sid)
         gaps = pf.missing()
         report = render(pf)

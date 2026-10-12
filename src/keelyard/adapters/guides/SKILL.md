@@ -29,7 +29,11 @@ hook blocks "done" until there is evidence.
 - Repeat `read_file` calls on an unchanged file return a one-line notice.
 - `run_compact` keeps failures and `file:line`, drops passing noise; `recall(output_id)` returns the rest.
 - `memory_search(query)` finds how something was solved in an earlier session.
-- `swarm(tasks)` sends bulk read/summarise work to a cheap model and checks its citations.
+- `swarm_plan(goal)` splits wide work into per-file tasks with focused context; `swarm(tasks)` runs them on a cheap
+  model and checks every answer (citations exist, patches pass the tests in a copy). With no helper model it
+  returns `subagent_tasks`: send each `subagent_prompt` to your own subagents (Task tool), then `swarm_verify`.
+- keelyard adds short notes to your context (a brief, past-session snippets, hints before destructive commands).
+  They are advisory and rate-limited; act on them when they apply.
 
 ## Without MCP
 

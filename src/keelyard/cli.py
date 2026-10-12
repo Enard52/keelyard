@@ -200,10 +200,18 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--by", choices=["day", "model", "agent"], default="day")
 
     r = group(cmd("swarm", "fan small, checkable tasks out to a cheap model",
-                  'examples:\n  keelyard swarm run tasks.json   # [{"kind": "find", "prompt": "...", "files": ["a.py"]}]', leaf=False), "action", "")
+                  'examples:\n  keelyard swarm plan "fix total() for SAVE10" --json > tasks.json\n'
+                  '  keelyard swarm run tasks.json   # [{"kind": "ask", "prompt": "...", "files": ["a.py"], "symbols": ["total"]}]\n'
+                  '  keelyard swarm plan "where is auth checked" --subagents', leaf=False), "action", "")
     x = r.add_parser("run", help="run tasks from a JSON file")
     x.add_argument("tasks", type=Path)
     x.add_argument("--model", help="a [models.<key>] from the config (default: [swarm].helper_model)")
+    x.add_argument("--best-of", type=int, help="samples per task (default: [swarm].best_of)")
+    x.add_argument("--retries", type=int, help="retries with checker feedback (default: [swarm].retries)")
+    x = r.add_parser("plan", help="split a goal into focused helper tasks (no model call)")
+    x.add_argument("goal")
+    x.add_argument("--files", nargs="*", default=None, help="limit to these files")
+    x.add_argument("--subagents", action="store_true", help="print ready prompts for your agent's own subagents")
 
     r = group(cmd("arena", "run one task across agents and models, compare results",
                   "examples:\n  keelyard arena run examples/arena/discount/task.toml\n  keelyard arena render arena-results", leaf=False), "action", "")
@@ -668,8 +676,23 @@ def do_usage(a):
 
 
 def do_swarm(a):
-    from .swarm import Swarm, Task, format_results
+    from .swarm import Swarm, Task, format_results, plan, subagent_tasks
 
+    if a.action == "plan":
+        cfg = _cfg()
+        ts = plan(cfg, a.goal, a.files)
+        if not ts:
+            raise Fail("found no file for that goal. Hint: name a function or file, or pass --files.")
+        if a.subagents:
+            data = {"subagent_tasks": subagent_tasks(cfg, ts)}
+            if _human(a):
+                for s in data["subagent_tasks"]:
+                    print(f"--- task {s['id']} [{s['kind']}] {', '.join(s['files'])}\n{s['subagent_prompt']}\n")
+            return 0, data
+        tasks = [{"kind": t.kind, "prompt": t.prompt, "files": t.files, "symbols": t.symbols} for t in ts]
+        if _human(a):
+            print(json.dumps(tasks, indent=2))
+        return 0, {"tasks": tasks}
     try:
         raw = json.loads(a.tasks.read_text())
         tasks = [Task(**t) for t in raw]
@@ -677,7 +700,7 @@ def do_swarm(a):
         raise Fail(f"{a.tasks}: no such file") from None
     except (ValueError, TypeError) as e:
         raise Fail(f"{a.tasks} must be a JSON list of {{kind, prompt, files}} objects ({e}).") from None
-    results = asyncio.run(Swarm(_cfg(), a.model).run(tasks))
+    results = asyncio.run(Swarm(_cfg(), a.model, best_of=a.best_of, retries=a.retries).run(tasks))
     if _human(a):
         print(format_results(results))
     return 0, {"verified": sum(r.verified for r in results), "total": len(results), "results": [r.__dict__ for r in results]}

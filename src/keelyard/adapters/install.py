@@ -14,13 +14,14 @@ CLAUDE_EVENTS = {
     "SessionStart": None,
     "UserPromptSubmit": None,
     "PreCompact": None,
-    "PreToolUse": "Read",
+    "PreToolUse": "Read|Bash|Edit|Write|MultiEdit",  # dedupe reads, snapshot before destructive commands, nudges
     "PostToolUse": "Write|Edit|MultiEdit|NotebookEdit|Bash|Read",  # Bash: snapshot + output filter
     "Stop": None,
 }
 CODEX_EVENTS = {
     "SessionStart": None,
     "UserPromptSubmit": None,
+    "PreToolUse": "Bash|shell|apply_patch|Edit|Write",
     "PostToolUse": "Bash|apply_patch|Edit|Write",
     "Stop": None,
 }

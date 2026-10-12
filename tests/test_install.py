@@ -13,7 +13,7 @@ def test_install_claude_idempotent(project):
     assert s["permissions"]["allow"] == ["Bash(ls)"]
     stop_cmds = [h["command"] for g in s["hooks"]["Stop"] for h in g["hooks"]]
     assert stop_cmds.count("say done") == 1 and sum("keelyard" in c for c in stop_cmds) == 1
-    assert s["hooks"]["PreToolUse"][0]["matcher"] == "Read"
+    assert s["hooks"]["PreToolUse"][0]["matcher"] .startswith("Read|")
     assert json.loads((project / ".mcp.json").read_text())["mcpServers"]["keelyard"]["args"] == ["mcp"]
 
 

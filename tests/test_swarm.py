@@ -37,7 +37,7 @@ def test_swarm_200_workers_with_verification(cfg, project):
     transport, calls = fake_openai(answer)
     tasks = [Task("ask", "what does add do" if i % 10 else "lie please", ["app.py"]) for i in range(200)]
     tasks.append(Task("grep", "def add"))
-    res = asyncio.run(Swarm(cfg, transport=transport).run(tasks))
+    res = asyncio.run(Swarm(cfg, transport=transport, best_of=1, retries=0).run(tasks))
     assert calls["n"] == 200 and calls["max_inflight"] <= 50
     assert sum(r.verified for r in res) == 181  # 180 honest + 1 local grep; 20 liars caught
     liar = next(r for r in res if not r.verified)
@@ -59,7 +59,7 @@ def test_anthropic_provider_and_retry(cfg, project):
         return httpx.Response(200, json={"content": [{"type": "text", "text": "app.py:1 `def add(a, b):`"}],
                                          "usage": {"input_tokens": 5, "output_tokens": 3}})
 
-    res = asyncio.run(Swarm(cfg, transport=httpx.MockTransport(handler)).run([Task("ask", "q", ["app.py"])]))
+    res = asyncio.run(Swarm(cfg, transport=httpx.MockTransport(handler), best_of=1, retries=0).run([Task("ask", "q", ["app.py"])]))
     assert res[0].verified and state["n"] == 2
 
 

@@ -35,6 +35,28 @@ concurrency = 16
 max_tasks = 256
 # Which [models.*] entry helpers use.
 helper_model = "cheap"
+# Samples per task (best-of-N), retries with verifier feedback, and the model tried once when all fail
+# ("" = no escalation). Draft patches are also run against the tests in a temporary copy.
+best_of = 2
+retries = 1
+escalate_model = "strong"
+test_patches = true
+
+[brain]
+# Give the agent a short keelyard brief at session start and again after context compaction.
+brief = true
+brief_tokens = 600
+# Add the most relevant past-session snippets to each prompt (0 hits = nothing added).
+recall = true
+recall_tokens = 250
+# Short hints while the agent works: destructive commands, edits with no tests nearby, budget.
+nudges = true
+# Seconds before the same kind of hint can repeat, and a hard cap per session.
+nudge_cooldown_s = 300
+max_nudges_per_session = 12
+# Your plan's context/session token budget for "delegate to helpers" hints. 0 = off.
+plan_tokens = 0
+budget_warn_at = 0.6
 
 [saver]
 # Deny a repeat Read of an unchanged file (reset on context compaction).

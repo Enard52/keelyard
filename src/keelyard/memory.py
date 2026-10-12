@@ -146,7 +146,7 @@ def default_sources() -> list[tuple[str, Path]]:
 # --------------------------------------------------------------------------- store
 class Memory:
     def __init__(self, db: Path | None = None):
-        self.db_path = db or data_home() / "memory.db"
+        self.db_path = db or Path(os.environ.get("KEELYARD_MEMORY_DB") or data_home() / "memory.db")
         self.db = sqlite3.connect(self.db_path)
         os.chmod(self.db_path, 0o600)
         self.db.executescript(

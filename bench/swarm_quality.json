@@ -1,0 +1,59 @@
+{
+  "model": "qwen-coder-1.5b",
+  "drafts": 5,
+  "asks": 5,
+  "rows": [
+    {
+      "mode": "single",
+      "drafts_correct": 0,
+      "drafts_verified": 3,
+      "drafts_verified_but_wrong": 3,
+      "asks_correct": 1,
+      "asks_verified": 1,
+      "tokens_in": 12435,
+      "tokens_out": 1445,
+      "model_calls": 10,
+      "seconds": 89.9,
+      "run": 1
+    },
+    {
+      "mode": "pipeline",
+      "drafts_correct": 0,
+      "drafts_verified": 0,
+      "drafts_verified_but_wrong": 0,
+      "asks_correct": 3,
+      "asks_verified": 3,
+      "tokens_in": 10119,
+      "tokens_out": 5293,
+      "model_calls": 54,
+      "seconds": 326.3,
+      "run": 1
+    },
+    {
+      "mode": "single",
+      "drafts_correct": 0,
+      "drafts_verified": 2,
+      "drafts_verified_but_wrong": 2,
+      "asks_correct": 1,
+      "asks_verified": 1,
+      "tokens_in": 12435,
+      "tokens_out": 1348,
+      "model_calls": 10,
+      "seconds": 78.5,
+      "run": 2
+    },
+    {
+      "mode": "pipeline",
+      "drafts_correct": 0,
+      "drafts_verified": 0,
+      "drafts_verified_but_wrong": 0,
+      "asks_correct": 5,
+      "asks_verified": 5,
+      "tokens_in": 8334,
+      "tokens_out": 3447,
+      "model_calls": 45,
+      "seconds": 183.8,
+      "run": 2
+    }
+  ]
+}

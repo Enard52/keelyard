@@ -43,6 +43,7 @@ nav:
       - Rewind: guide/rewind.md
       - Smaller context: guide/context.md
       - Memory and usage: guide/memory.md
+      - Always on: guide/brain.md
       - Swarm: guide/swarm.md
       - Arena: guide/arena.md
       - For agents: guide/agents.md

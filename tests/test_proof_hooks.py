@@ -11,7 +11,7 @@ def claude(event, **kw):
 
 
 def test_gate_lifecycle(cfg, project):
-    assert hooks.handle("SessionStart", claude("SessionStart", source="startup"), cfg) is None
+    assert hooks.handle("SessionStart", claude("SessionStart", source="startup"), cfg)["hookSpecificOutput"]["hookEventName"] == "SessionStart"
     hooks.handle("UserPromptSubmit", claude("UserPromptSubmit", prompt="make add() support 3 args"), cfg)
     # pure Q&A turn: nothing changed -> no gate
     assert hooks.handle("Stop", claude("Stop", stop_hook_active=False), cfg) is None
@@ -61,7 +61,8 @@ def test_hook_cli_claude_format_end_to_end(project):
         return json.loads(p.stdout) if p.stdout.strip() else None
 
     base = {"session_id": "abc-123", "transcript_path": "/tmp/x.jsonl", "cwd": str(project)}
-    assert run("SessionStart", {**base, "hook_event_name": "SessionStart", "source": "startup"}) is None
+    out = run("SessionStart", {**base, "hook_event_name": "SessionStart", "source": "startup"})
+    assert out["hookSpecificOutput"]["hookEventName"] == "SessionStart"
     (project / "app.py").write_text("print('changed')\n")
     run("PostToolUse", {**base, "hook_event_name": "PostToolUse", "tool_name": "Write",
                         "tool_input": {"file_path": str(project / "app.py"), "content": "..."}, "tool_response": {}})

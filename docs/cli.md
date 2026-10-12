@@ -563,15 +563,20 @@ options:
 actions:
   <action>
     run       run tasks from a JSON file
+    plan      split a goal into focused helper tasks (no model call)
 
 examples:
-  keelyard swarm run tasks.json   # [{"kind": "find", "prompt": "...", "files": ["a.py"]}]
+  keelyard swarm plan "fix total() for SAVE10" --json > tasks.json
+  keelyard swarm run tasks.json   # [{"kind": "ask", "prompt": "...", "files": ["a.py"], "symbols": ["total"]}]
+  keelyard swarm plan "where is auth checked" --subagents
 ```
 
 ### swarm run
 
 ```text
-usage: keelyard <command> [options] swarm run [-h] [--json] [--model MODEL] tasks
+usage: keelyard <command> [options] swarm run [-h] [--json] [--model MODEL] [--best-of BEST_OF]
+                                              [--retries RETRIES]
+                                              tasks
 
 run tasks from a JSON file
 
@@ -579,9 +584,11 @@ positional arguments:
   tasks
 
 options:
-  -h, --help     show this help message and exit
-  --json         print one JSON object on stdout (for scripts and agents)
-  --model MODEL  a [models.<key>] from the config (default: [swarm].helper_model)
+  -h, --help         show this help message and exit
+  --json             print one JSON object on stdout (for scripts and agents)
+  --model MODEL      a [models.<key>] from the config (default: [swarm].helper_model)
+  --best-of BEST_OF  samples per task (default: [swarm].best_of)
+  --retries RETRIES  retries with checker feedback (default: [swarm].retries)
 ```
 
 ## arena

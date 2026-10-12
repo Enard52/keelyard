@@ -14,8 +14,8 @@ Workflow for any task that changes files:
 4. run_compact for noisy commands (tests, builds, git log); recall(output_id) if you need the full text.
 5. proof_run_tests(phase="after"), then proof_check(requirement_id, evidence) for each item.
 6. proof_status must say proven=true before you tell the user you are done; the Stop hook enforces it.
-Use memory_search before re-deriving something solved in an earlier session, and swarm for bulk
-read/summarise/draft work that a cheap model can do with checkable citations.
+Use memory_search before re-deriving something solved in an earlier session. For bulk read/summarise/draft
+work, swarm_plan(goal) then swarm(tasks): answers are checked (citations, patches tested in a copy).
 ```
 
 Every tool returns a JSON object (MCP structured content). Errors are MCP tool errors whose text says what went wrong and, where there is one, a `Hint:` with the fix.
@@ -38,7 +38,8 @@ Every tool returns a JSON object (MCP structured content). Errors are MCP tool e
 | [`find_symbol`](#find_symbol) | yes |  | Where is a symbol defined? Returns {"matches": ["path:line: signature", ...]}. |
 | [`usage_report`](#usage_report) | yes |  | Token usage and cost from local Claude Code, Codex and OpenCode logs. Cost is null for unpriced models. |
 | [`route_task`](#route_task) | yes |  | Suggest the strong or the cheap model for a subtask (a transparent keyword heuristic, not a model call). |
-| [`swarm`](#swarm) |  |  | Run many small tasks on the configured helper model in parallel and check each answer: |
+| [`swarm`](#swarm) |  |  | Run small tasks on the configured helper model in parallel. Each answer is checked: citations (path:line) |
+| [`swarm_plan`](#swarm_plan) | yes |  | Split a goal into small tasks, one per relevant file, each with a minimal context pack (only the named |
 | [`swarm_verify`](#swarm_verify) | yes |  | Verify an answer from any helper, including your own subagents. Returns {"verified", "notes"}. |
 | [`memory_search`](#memory_search) | yes |  | Search past Claude Code, Codex and OpenCode sessions. New sessions are indexed first. |
 | [`status`](#status) | yes |  | One call to orient yourself: version, project root, snapshot count, proof state. |
@@ -187,13 +188,26 @@ Suggest the strong or the cheap model for a subtask (a transparent keyword heuri
 
 ## swarm
 
-Run many small tasks on the configured helper model in parallel and check each answer:
-citations (path:line) must exist, drafts must pass `git apply --check` (never applied).
-With no helper model configured, returns {"mode": "plan"} for your own subagents instead.
+Run small tasks on the configured helper model in parallel. Each answer is checked: citations (path:line)
+must exist; drafts must apply and pass the tests in a throwaway copy (never applied to your files).
+Failed answers are retried with the checker's notes, best-of-N, then escalated to the strong model if set.
+With no helper model configured, returns {"mode": "plan", "subagent_tasks": [...]} for your own subagents.
 
 | parameter | type | default | description |
 |---|---|---|---|
-| `tasks` | array | required | Each: {"kind": "ask"|"summarize"|"draft_edit"|"grep", "prompt": str, "files": [paths]}. Example: [{"kind": "ask", "prompt": "Where is the discount applied?", "files": ["cart.py"]}] |
+| `tasks` | array | required | Each: {"kind": "ask"|"summarize"|"draft_edit"|"grep", "prompt": str, "files": [paths], "symbols": [names]}. "symbols" narrows the context to those definitions. Tip: swarm_plan builds this list for you. Example: [{"kind": "ask", "prompt": "Where is the discount applied?", "files": ["cart.py"]}] |
+
+## swarm_plan
+
+Split a goal into small tasks, one per relevant file, each with a minimal context pack (only the named
+definitions plus imports). Returns {"tasks"} to pass to swarm, and {"subagent_tasks"} with ready prompts
+for your own subagents. Deterministic: no model call.
+
+| parameter | type | default | description |
+|---|---|---|---|
+| `goal` | string | required | What you want done, e.g. "fix total() so SAVE10 takes 10% off". |
+| `files` | array | [] | Limit to these files; empty = find the files that define the symbols the goal names. |
+| `max_tasks` | integer | 8 | Upper bound on tasks. |
 
 ## swarm_verify
 

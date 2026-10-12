@@ -122,6 +122,8 @@ CASES: list[Case] = [
     # swarm, arena, bench
     Case("swarm", "swarm run missing file", ["swarm", "run", "nope.json", "--json"], exit=1),
     Case("swarm", "swarm run bad JSON", ["swarm", "run", "app.py", "--json"], exit=1),
+    Case("swarm", "swarm plan", ["swarm", "plan", "fix add for strings", "--json"], exit=0),
+    Case("swarm", "swarm plan --subagents", ["swarm", "plan", "where is add defined", "--subagents"], exit=0),
     Case("arena", "arena run missing spec", ["arena", "run", "nope.toml", "--json"], exit=1),
     Case("arena", "arena render without results", ["arena", "render", "nowhere", "--json"], exit=1),
     Case("bench", "bench leaves the timeline alone", ["bench", "--json"], check=lambda d, p: d["snapshot"]["median_ms"] > 0),
@@ -245,6 +247,8 @@ MCP_CASES: list[tuple[str, dict, bool, Callable[[dict], bool]]] = [
     ("usage_report", {"by": "model"}, False, lambda d: "rows" in d),
     ("route_task", {"task": "design the concurrency architecture", "n_files": 9}, False, lambda d: d["tier"] == "strong"),
     ("swarm", {"tasks": [{"kind": "ask", "prompt": "where is add?", "files": ["app.py"]}]}, False, lambda d: d["mode"] in ("plan", "ran")),
+    ("swarm_plan", {"goal": "fix add so it handles strings"}, False,
+     lambda d: d["tasks"][0]["files"] == ["app.py"] and d["tasks"][0]["symbols"] == ["add"] and d["subagent_tasks"]),
     ("swarm_verify", {"answer": "app.py:2 `return a + b`", "files": ["app.py"]}, False, lambda d: d["verified"]),
     ("swarm_verify", {"answer": "app.py:99 nothing", "files": ["app.py"]}, False, lambda d: not d["verified"]),
     ("memory_search", {"query": "websocket", "this_project_only": False}, False, lambda d: len(d["hits"]) >= 1),

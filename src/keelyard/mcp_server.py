@@ -34,7 +34,7 @@ from .proof import Proof
 from .report import render
 from .saver import ReadCache, compress_output, route
 from .snapshot import Shadow
-from .swarm import Swarm, Task, subagent_plan, verify_citations, verify_patch
+from .swarm import Swarm, Task, plan, subagent_tasks, verify_citations, verify_patch
 from .usage import collect as usage_collect
 
 INSTRUCTIONS = """keelyard: proof, rewind and a smaller context for this project.
@@ -46,8 +46,8 @@ Workflow for any task that changes files:
 4. run_compact for noisy commands (tests, builds, git log); recall(output_id) if you need the full text.
 5. proof_run_tests(phase="after"), then proof_check(requirement_id, evidence) for each item.
 6. proof_status must say proven=true before you tell the user you are done; the Stop hook enforces it.
-Use memory_search before re-deriving something solved in an earlier session, and swarm for bulk
-read/summarise/draft work that a cheap model can do with checkable citations."""
+Use memory_search before re-deriving something solved in an earlier session. For bulk read/summarise/draft
+work, swarm_plan(goal) then swarm(tasks): answers are checked (citations, patches tested in a copy)."""
 
 mcp = _Server("keelyard", instructions=INSTRUCTIONS)
 
@@ -260,24 +260,46 @@ def route_task(
 @_tool(_ann("Run helper tasks", open_world=True))
 async def swarm(
     tasks: Annotated[list[dict[str, Any]], Field(min_length=1, description=(
-        'Each: {"kind": "ask"|"summarize"|"draft_edit"|"grep", "prompt": str, "files": [paths]}. '
+        'Each: {"kind": "ask"|"summarize"|"draft_edit"|"grep", "prompt": str, "files": [paths], "symbols": [names]}. '
+        '"symbols" narrows the context to those definitions. Tip: swarm_plan builds this list for you. '
         'Example: [{"kind": "ask", "prompt": "Where is the discount applied?", "files": ["cart.py"]}]'))],
 ) -> dict[str, Any]:
-    """Run many small tasks on the configured helper model in parallel and check each answer:
-    citations (path:line) must exist, drafts must pass `git apply --check` (never applied).
-    With no helper model configured, returns {"mode": "plan"} for your own subagents instead."""
+    """Run small tasks on the configured helper model in parallel. Each answer is checked: citations (path:line)
+    must exist; drafts must apply and pass the tests in a throwaway copy (never applied to your files).
+    Failed answers are retried with the checker's notes, best-of-N, then escalated to the strong model if set.
+    With no helper model configured, returns {"mode": "plan", "subagent_tasks": [...]} for your own subagents."""
     cfg, _ = _ctx()
-    ts = [Task(kind=t.get("kind", "ask"), prompt=t.get("prompt", ""), files=list(t.get("files", []))) for t in tasks]
+    ts = [Task(kind=t.get("kind", "ask"), prompt=t.get("prompt", ""), files=list(t.get("files", [])),
+               symbols=list(t.get("symbols", []))) for t in tasks]
     try:
         sw = Swarm(cfg)
     except KeyError:
         sw = None
     if sw is None or sw.model.get("model") in ("", "set-me", None):
-        return {"mode": "plan", "plan": subagent_plan(ts)}
+        return {"mode": "plan", "note": "No helper model configured. Send each subagent_prompt to your own subagents "
+                "(Claude Code Task tool, OpenCode subagents), then check answers with swarm_verify.",
+                "subagent_tasks": subagent_tasks(cfg, ts)}
     results = await sw.run(ts)
     return {"mode": "ran", "verified": sum(r.verified for r in results), "total": len(results),
             "results": [{"id": r.id, "kind": r.kind, "ok": r.ok, "verified": r.verified, "notes": r.notes,
-                         "output": r.output[:1500], "tokens_in": r.tokens_in, "tokens_out": r.tokens_out} for r in results]}
+                         "output": r.output[:1500], "tokens_in": r.tokens_in, "tokens_out": r.tokens_out,
+                         "attempts": r.attempts, "candidates": r.candidates, "escalated": r.escalated,
+                         "tests_passed": r.tests_passed} for r in results]}
+
+
+@_tool(_ann("Split a goal into helper tasks", read_only=True))
+def swarm_plan(
+    goal: Annotated[str, Field(min_length=3, description='What you want done, e.g. "fix total() so SAVE10 takes 10% off".')],
+    files: Annotated[list[str], Field(description="Limit to these files; empty = find the files that define the symbols the goal names.")] = [],  # noqa: B006
+    max_tasks: Annotated[int, Field(ge=1, le=64, description="Upper bound on tasks.")] = 8,
+) -> dict[str, Any]:
+    """Split a goal into small tasks, one per relevant file, each with a minimal context pack (only the named
+    definitions plus imports). Returns {"tasks"} to pass to swarm, and {"subagent_tasks"} with ready prompts
+    for your own subagents. Deterministic: no model call."""
+    cfg, _ = _ctx()
+    ts = plan(cfg, goal, files or None, max_tasks)
+    return {"tasks": [{"kind": t.kind, "prompt": t.prompt, "files": t.files, "symbols": t.symbols} for t in ts],
+            "subagent_tasks": subagent_tasks(cfg, ts)}
 
 
 @_tool(_ann("Verify a helper answer", read_only=True))
