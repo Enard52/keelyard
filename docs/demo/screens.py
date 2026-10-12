@@ -93,7 +93,7 @@ def main() -> None:
     hook("PostToolUse", ',"tool_name":"Write","tool_input":{"file_path":"test_cart.py"}')
     hook("Stop")
     status = c("keelyard status")
-    lst = c("keelyard rewind list")
+    lst = c("keelyard rewind")
     show = c("keelyard rewind show 3")
     to = c("keelyard rewind to 2")
     render("cli-init", "keelyard init", [init])

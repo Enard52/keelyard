@@ -5,99 +5,99 @@
     
     
 
-    .terminal-1804450325-matrix {
+    .terminal-1636153977-matrix {
         font-family: Geist Mono, monospace;
         font-size: 20px;
         line-height: 24.4px;
         font-variant-east-asian: full-width;
     }
 
-    .terminal-1804450325-title {
+    .terminal-1636153977-title {
         font-size: 18px;
         font-weight: bold;
         font-family: arial;
     }
 
-    .terminal-1804450325-r1 { fill: #6b6b66 }
-.terminal-1804450325-r2 { fill: #ededea;font-weight: bold }
-.terminal-1804450325-r3 { fill: #ededea }
-.terminal-1804450325-r4 { fill: #8a8a85 }
-.terminal-1804450325-r5 { fill: #3f9d6a }
+    .terminal-1636153977-r1 { fill: #6b6b66 }
+.terminal-1636153977-r2 { fill: #ededea;font-weight: bold }
+.terminal-1636153977-r3 { fill: #ededea }
+.terminal-1636153977-r4 { fill: #8a8a85 }
+.terminal-1636153977-r5 { fill: #3f9d6a }
     </style>
 
     <defs>
-    <clipPath id="terminal-1804450325-clip-terminal">
+    <clipPath id="terminal-1636153977-clip-terminal">
       <rect x="0" y="0" width="1151.0" height="365.0" />
     </clipPath>
-    <clipPath id="terminal-1804450325-line-0">
+    <clipPath id="terminal-1636153977-line-0">
     <rect x="0" y="1.5" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-1">
+<clipPath id="terminal-1636153977-line-1">
     <rect x="0" y="25.9" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-2">
+<clipPath id="terminal-1636153977-line-2">
     <rect x="0" y="50.3" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-3">
+<clipPath id="terminal-1636153977-line-3">
     <rect x="0" y="74.7" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-4">
+<clipPath id="terminal-1636153977-line-4">
     <rect x="0" y="99.1" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-5">
+<clipPath id="terminal-1636153977-line-5">
     <rect x="0" y="123.5" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-6">
+<clipPath id="terminal-1636153977-line-6">
     <rect x="0" y="147.9" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-7">
+<clipPath id="terminal-1636153977-line-7">
     <rect x="0" y="172.3" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-8">
+<clipPath id="terminal-1636153977-line-8">
     <rect x="0" y="196.7" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-9">
+<clipPath id="terminal-1636153977-line-9">
     <rect x="0" y="221.1" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-10">
+<clipPath id="terminal-1636153977-line-10">
     <rect x="0" y="245.5" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-11">
+<clipPath id="terminal-1636153977-line-11">
     <rect x="0" y="269.9" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-12">
+<clipPath id="terminal-1636153977-line-12">
     <rect x="0" y="294.3" width="1152" height="24.65"/>
             </clipPath>
-<clipPath id="terminal-1804450325-line-13">
+<clipPath id="terminal-1636153977-line-13">
     <rect x="0" y="318.7" width="1152" height="24.65"/>
             </clipPath>
     </defs>
 
-    <rect fill="#111110" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1168" height="414" rx="8"/><text class="terminal-1804450325-title" fill="#ededea" text-anchor="middle" x="584" y="27">keelyard&#160;init</text>
+    <rect fill="#111110" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1168" height="414" rx="8"/><text class="terminal-1636153977-title" fill="#ededea" text-anchor="middle" x="584" y="27">keelyard&#160;init</text>
             <g transform="translate(26,22)">
             <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
             <circle cx="22" cy="0" r="7" fill="#febc2e"/>
             <circle cx="44" cy="0" r="7" fill="#28c840"/>
             </g>
         
-    <g transform="translate(9, 41)" clip-path="url(#terminal-1804450325-clip-terminal)">
+    <g transform="translate(9, 41)" clip-path="url(#terminal-1636153977-clip-terminal)">
     
-    <g class="terminal-1804450325-matrix">
-    <text class="terminal-1804450325-r1" x="0" y="20" textLength="24" clip-path="url(#terminal-1804450325-line-0)">$&#160;</text><text class="terminal-1804450325-r2" x="24" y="20" textLength="504" clip-path="url(#terminal-1804450325-line-0)">keelyard&#160;init&#160;--agent&#160;claude&#160;--agent&#160;codex</text><text class="terminal-1804450325-r3" x="1152" y="20" textLength="12" clip-path="url(#terminal-1804450325-line-0)">
-</text><text class="terminal-1804450325-r2" x="0" y="44.4" textLength="156" clip-path="url(#terminal-1804450325-line-1)">keelyard&#160;init</text><text class="terminal-1804450325-r4" x="180" y="44.4" textLength="252" clip-path="url(#terminal-1804450325-line-1)">/tmp/tmpit0w3zq1/shop</text><text class="terminal-1804450325-r3" x="1152" y="44.4" textLength="12" clip-path="url(#terminal-1804450325-line-1)">
-</text><text class="terminal-1804450325-r3" x="1152" y="68.8" textLength="12" clip-path="url(#terminal-1804450325-line-2)">
-</text><text class="terminal-1804450325-r5" x="24" y="93.2" textLength="12" clip-path="url(#terminal-1804450325-line-3)">✓</text><text class="terminal-1804450325-r3" x="36" y="93.2" textLength="240" clip-path="url(#terminal-1804450325-line-3)">&#160;config&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1804450325-r4" x="276" y="93.2" textLength="252" clip-path="url(#terminal-1804450325-line-3)">.keelyard/config.toml</text><text class="terminal-1804450325-r3" x="1152" y="93.2" textLength="12" clip-path="url(#terminal-1804450325-line-3)">
-</text><text class="terminal-1804450325-r5" x="24" y="117.6" textLength="12" clip-path="url(#terminal-1804450325-line-4)">✓</text><text class="terminal-1804450325-r3" x="36" y="117.6" textLength="240" clip-path="url(#terminal-1804450325-line-4)">&#160;claude&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1804450325-r4" x="276" y="117.6" textLength="612" clip-path="url(#terminal-1804450325-line-4)">hooks,&#160;MCP&#160;server,&#160;CLAUDE.md,&#160;skill,&#160;slash&#160;commands</text><text class="terminal-1804450325-r3" x="1152" y="117.6" textLength="12" clip-path="url(#terminal-1804450325-line-4)">
-</text><text class="terminal-1804450325-r5" x="24" y="142" textLength="12" clip-path="url(#terminal-1804450325-line-5)">✓</text><text class="terminal-1804450325-r3" x="36" y="142" textLength="240" clip-path="url(#terminal-1804450325-line-5)">&#160;codex&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1804450325-r4" x="276" y="142" textLength="192" clip-path="url(#terminal-1804450325-line-5)">hooks,&#160;AGENTS.md</text><text class="terminal-1804450325-r3" x="1152" y="142" textLength="12" clip-path="url(#terminal-1804450325-line-5)">
-</text><text class="terminal-1804450325-r4" x="72" y="166.4" textLength="336" clip-path="url(#terminal-1804450325-line-6)">add&#160;to&#160;~/.codex/config.toml:</text><text class="terminal-1804450325-r3" x="1152" y="166.4" textLength="12" clip-path="url(#terminal-1804450325-line-6)">
-</text><text class="terminal-1804450325-r4" x="72" y="190.8" textLength="264" clip-path="url(#terminal-1804450325-line-7)">[mcp_servers.keelyard]</text><text class="terminal-1804450325-r3" x="1152" y="190.8" textLength="12" clip-path="url(#terminal-1804450325-line-7)">
-</text><text class="terminal-1804450325-r4" x="72" y="215.2" textLength="648" clip-path="url(#terminal-1804450325-line-8)">command&#160;=&#160;&quot;/workspace/oss/keelyard/.venv/bin/keelyard&quot;</text><text class="terminal-1804450325-r3" x="1152" y="215.2" textLength="12" clip-path="url(#terminal-1804450325-line-8)">
-</text><text class="terminal-1804450325-r4" x="72" y="239.6" textLength="168" clip-path="url(#terminal-1804450325-line-9)">args&#160;=&#160;[&quot;mcp&quot;]</text><text class="terminal-1804450325-r3" x="1152" y="239.6" textLength="12" clip-path="url(#terminal-1804450325-line-9)">
-</text><text class="terminal-1804450325-r4" x="72" y="264" textLength="672" clip-path="url(#terminal-1804450325-line-10)">then&#160;run&#160;/hooks&#160;once&#160;inside&#160;Codex&#160;to&#160;trust&#160;the&#160;new&#160;hooks</text><text class="terminal-1804450325-r3" x="1152" y="264" textLength="12" clip-path="url(#terminal-1804450325-line-10)">
-</text><text class="terminal-1804450325-r5" x="24" y="288.4" textLength="12" clip-path="url(#terminal-1804450325-line-11)">✓</text><text class="terminal-1804450325-r3" x="36" y="288.4" textLength="240" clip-path="url(#terminal-1804450325-line-11)">&#160;first&#160;snapshot&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1804450325-r4" x="276" y="288.4" textLength="144" clip-path="url(#terminal-1804450325-line-11)">#1,&#160;11&#160;files</text><text class="terminal-1804450325-r3" x="1152" y="288.4" textLength="12" clip-path="url(#terminal-1804450325-line-11)">
-</text><text class="terminal-1804450325-r3" x="1152" y="312.8" textLength="12" clip-path="url(#terminal-1804450325-line-12)">
-</text><text class="terminal-1804450325-r3" x="0" y="337.2" textLength="528" clip-path="url(#terminal-1804450325-line-13)">&#160;&#160;next:&#160;start&#160;your&#160;agent&#160;as&#160;usual,&#160;then&#160;run&#160;</text><text class="terminal-1804450325-r2" x="528" y="337.2" textLength="180" clip-path="url(#terminal-1804450325-line-13)">keelyard&#160;status</text><text class="terminal-1804450325-r3" x="708" y="337.2" textLength="12" clip-path="url(#terminal-1804450325-line-13)">.</text><text class="terminal-1804450325-r3" x="1152" y="337.2" textLength="12" clip-path="url(#terminal-1804450325-line-13)">
-</text><text class="terminal-1804450325-r3" x="1152" y="361.6" textLength="12" clip-path="url(#terminal-1804450325-line-14)">
+    <g class="terminal-1636153977-matrix">
+    <text class="terminal-1636153977-r1" x="0" y="20" textLength="24" clip-path="url(#terminal-1636153977-line-0)">$&#160;</text><text class="terminal-1636153977-r2" x="24" y="20" textLength="504" clip-path="url(#terminal-1636153977-line-0)">keelyard&#160;init&#160;--agent&#160;claude&#160;--agent&#160;codex</text><text class="terminal-1636153977-r3" x="1152" y="20" textLength="12" clip-path="url(#terminal-1636153977-line-0)">
+</text><text class="terminal-1636153977-r2" x="0" y="44.4" textLength="156" clip-path="url(#terminal-1636153977-line-1)">keelyard&#160;init</text><text class="terminal-1636153977-r4" x="180" y="44.4" textLength="252" clip-path="url(#terminal-1636153977-line-1)">/tmp/tmpvpfegyn8/shop</text><text class="terminal-1636153977-r3" x="1152" y="44.4" textLength="12" clip-path="url(#terminal-1636153977-line-1)">
+</text><text class="terminal-1636153977-r3" x="1152" y="68.8" textLength="12" clip-path="url(#terminal-1636153977-line-2)">
+</text><text class="terminal-1636153977-r5" x="24" y="93.2" textLength="12" clip-path="url(#terminal-1636153977-line-3)">✓</text><text class="terminal-1636153977-r3" x="36" y="93.2" textLength="240" clip-path="url(#terminal-1636153977-line-3)">&#160;config&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1636153977-r4" x="276" y="93.2" textLength="252" clip-path="url(#terminal-1636153977-line-3)">.keelyard/config.toml</text><text class="terminal-1636153977-r3" x="1152" y="93.2" textLength="12" clip-path="url(#terminal-1636153977-line-3)">
+</text><text class="terminal-1636153977-r5" x="24" y="117.6" textLength="12" clip-path="url(#terminal-1636153977-line-4)">✓</text><text class="terminal-1636153977-r3" x="36" y="117.6" textLength="240" clip-path="url(#terminal-1636153977-line-4)">&#160;claude&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1636153977-r4" x="276" y="117.6" textLength="612" clip-path="url(#terminal-1636153977-line-4)">hooks,&#160;MCP&#160;server,&#160;CLAUDE.md,&#160;skill,&#160;slash&#160;commands</text><text class="terminal-1636153977-r3" x="1152" y="117.6" textLength="12" clip-path="url(#terminal-1636153977-line-4)">
+</text><text class="terminal-1636153977-r5" x="24" y="142" textLength="12" clip-path="url(#terminal-1636153977-line-5)">✓</text><text class="terminal-1636153977-r3" x="36" y="142" textLength="240" clip-path="url(#terminal-1636153977-line-5)">&#160;codex&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1636153977-r4" x="276" y="142" textLength="192" clip-path="url(#terminal-1636153977-line-5)">hooks,&#160;AGENTS.md</text><text class="terminal-1636153977-r3" x="1152" y="142" textLength="12" clip-path="url(#terminal-1636153977-line-5)">
+</text><text class="terminal-1636153977-r4" x="72" y="166.4" textLength="336" clip-path="url(#terminal-1636153977-line-6)">add&#160;to&#160;~/.codex/config.toml:</text><text class="terminal-1636153977-r3" x="1152" y="166.4" textLength="12" clip-path="url(#terminal-1636153977-line-6)">
+</text><text class="terminal-1636153977-r4" x="72" y="190.8" textLength="264" clip-path="url(#terminal-1636153977-line-7)">[mcp_servers.keelyard]</text><text class="terminal-1636153977-r3" x="1152" y="190.8" textLength="12" clip-path="url(#terminal-1636153977-line-7)">
+</text><text class="terminal-1636153977-r4" x="72" y="215.2" textLength="648" clip-path="url(#terminal-1636153977-line-8)">command&#160;=&#160;&quot;/workspace/oss/keelyard/.venv/bin/keelyard&quot;</text><text class="terminal-1636153977-r3" x="1152" y="215.2" textLength="12" clip-path="url(#terminal-1636153977-line-8)">
+</text><text class="terminal-1636153977-r4" x="72" y="239.6" textLength="168" clip-path="url(#terminal-1636153977-line-9)">args&#160;=&#160;[&quot;mcp&quot;]</text><text class="terminal-1636153977-r3" x="1152" y="239.6" textLength="12" clip-path="url(#terminal-1636153977-line-9)">
+</text><text class="terminal-1636153977-r4" x="72" y="264" textLength="672" clip-path="url(#terminal-1636153977-line-10)">then&#160;run&#160;/hooks&#160;once&#160;inside&#160;Codex&#160;to&#160;trust&#160;the&#160;new&#160;hooks</text><text class="terminal-1636153977-r3" x="1152" y="264" textLength="12" clip-path="url(#terminal-1636153977-line-10)">
+</text><text class="terminal-1636153977-r5" x="24" y="288.4" textLength="12" clip-path="url(#terminal-1636153977-line-11)">✓</text><text class="terminal-1636153977-r3" x="36" y="288.4" textLength="240" clip-path="url(#terminal-1636153977-line-11)">&#160;first&#160;snapshot&#160;&#160;&#160;&#160;&#160;</text><text class="terminal-1636153977-r4" x="276" y="288.4" textLength="144" clip-path="url(#terminal-1636153977-line-11)">#1,&#160;11&#160;files</text><text class="terminal-1636153977-r3" x="1152" y="288.4" textLength="12" clip-path="url(#terminal-1636153977-line-11)">
+</text><text class="terminal-1636153977-r3" x="1152" y="312.8" textLength="12" clip-path="url(#terminal-1636153977-line-12)">
+</text><text class="terminal-1636153977-r3" x="0" y="337.2" textLength="528" clip-path="url(#terminal-1636153977-line-13)">&#160;&#160;next:&#160;start&#160;your&#160;agent&#160;as&#160;usual,&#160;then&#160;run&#160;</text><text class="terminal-1636153977-r2" x="528" y="337.2" textLength="180" clip-path="url(#terminal-1636153977-line-13)">keelyard&#160;status</text><text class="terminal-1636153977-r3" x="708" y="337.2" textLength="12" clip-path="url(#terminal-1636153977-line-13)">.</text><text class="terminal-1636153977-r3" x="1152" y="337.2" textLength="12" clip-path="url(#terminal-1636153977-line-13)">
+</text><text class="terminal-1636153977-r3" x="1152" y="361.6" textLength="12" clip-path="url(#terminal-1636153977-line-14)">
 </text>
     </g>
     </g>

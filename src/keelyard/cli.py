@@ -52,7 +52,8 @@ EXAMPLES = {
   keelyard init --agent claude     # only Claude Code
   keelyard init --dry-run          # show what would change""",
     "rewind": """examples:
-  keelyard rewind list             # every step agents took, newest last
+  keelyard rewind                  # every step agents took, newest last
+  keelyard rewind list -i          # browse steps and diffs full-screen
   keelyard rewind show 12          # the diff that step 12 made
   keelyard rewind to 9             # put the files back as they were after step 9
   keelyard rewind fork 9 ../try-b  # copy step 9 into another folder
@@ -145,6 +146,7 @@ def _parser() -> argparse.ArgumentParser:
         p.add_argument("agent", choices=["claude", "codex", "opencode"])
 
     r = group(cmd("rewind", "list, inspect and undo agent steps", leaf=False), "action", "")
+    r.s.required = False  # bare `keelyard rewind` lists steps
     x = r.add_parser("list", help="list snapshots")
     x.add_argument("-i", "--interactive", action="store_true", help="open the timeline browser")
     x.add_argument("-n", type=int, default=30, help="show the last N steps (default 30)")
@@ -451,6 +453,8 @@ def do_rewind(a):
 
     sh = Shadow(_cfg())
     h = _human(a)
+    if a.action is None:
+        a.action, a.interactive, a.n = "list", False, 30
     if a.action == "list":
         if a.interactive and h:
             from .tui import run
@@ -477,7 +481,10 @@ def do_rewind(a):
                 day = t.date()
                 ui.out.print(f"[muted]{day:%a %d %b}[/]")
             room = max(20, ui.out.width - 36)
-            files = ", ".join(s.files[:3])
+            # the user's own files first; agent wiring (.claude/, AGENTS.md, ...) last
+            ordered = sorted(s.files, key=lambda f: f.startswith((".claude/", ".codex/", ".opencode/", "AGENTS.md", "CLAUDE.md",
+                                                                  "opencode.json", ".mcp.json")))
+            files = ", ".join(ordered[:3])
             more = f"  +{len(s.files) - 3}" if len(s.files) > 3 else ""
             if len(files) + len(more) > room:
                 files = files[: max(0, room - len(more) - 1)] + "…"

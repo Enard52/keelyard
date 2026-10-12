@@ -416,3 +416,11 @@ def test_state_dir_creation_races_safely(tmp_path):
     finally:
         Path.exists = real_exists
     assert not errors
+
+
+def test_bare_rewind_lists_steps(project):
+    """UX: `keelyard rewind` alone was a usage error; it now lists steps."""
+    from keelyard.cli import main
+
+    config.init(project)
+    assert main(["rewind"]) == 0

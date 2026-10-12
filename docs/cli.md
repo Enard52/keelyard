@@ -156,7 +156,8 @@ actions:
     snap      take a snapshot now
 
 examples:
-  keelyard rewind list             # every step agents took, newest last
+  keelyard rewind                  # every step agents took, newest last
+  keelyard rewind list -i          # browse steps and diffs full-screen
   keelyard rewind show 12          # the diff that step 12 made
   keelyard rewind to 9             # put the files back as they were after step 9
   keelyard rewind fork 9 ../try-b  # copy step 9 into another folder
