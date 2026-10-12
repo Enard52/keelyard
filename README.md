@@ -86,7 +86,7 @@ caveats are in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 | Same 8 commands through rtk 0.51 | 5,747 tokens; 24% of ruff and 71% of pytest facts kept |
 | Snapshot after an edit, Django (7,083 files) | 88 ms median, 2.3 s for the first snapshot |
 | Feature matrix: CLI, hooks, MCP tools, agent self-test | 110 / 110 cases pass ([table](docs/feature-matrix.md)) |
-| Swarm with a 1.5B local model | 3 of 12 tasks verified. Too small to be useful. |
+| Swarm fixes, 1.5B local model, 5 bugs × 2 runs | old single-shot 0/5 correct; new checked pipeline 4/5, no false "verified" ([details](docs/BENCHMARKS.md#swarm-quality)) |
 
 The arena has no agent-vs-agent numbers yet. The only measured run uses a local 1.5B model, which solved
 0 of 5 attempts ([report](docs/img/arena-report.png)).

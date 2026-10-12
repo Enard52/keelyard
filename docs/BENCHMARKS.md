@@ -88,3 +88,28 @@ a hosted cheap model. We have not yet measured how well larger models verify.
 
 - `reads`: repeated identical reads in real Claude Code transcripts (harness exists, no transcripts on the build box).
 - `memory`: recall@8 and snippet/transcript ratio on real sessions (harness exists, same reason).
+
+## Swarm quality
+
+`python bench/swarm_quality.py --runs 2`, local qwen-coder 1.5B on Ollama, 2026-10-12. Five one-function bug
+fixes and five "which line does X" questions, in a repo where each file also carries 25 unrelated helpers.
+*Single* is the old swarm: whole file, one sample, diff output, `git apply --check` only. *Pipeline* is the
+new one: context pack, one-definition rewrite, tests on a copy, best-of-3, one retry with feedback, no
+escalation (no strong model configured). Ground truth for fixes is that module's own tests passing with the
+patch; for questions, citing the expected line.
+
+| | single, run 1 / 2 | pipeline, run 1 / 2 |
+|---|---|---|
+| fixes actually correct | 0 / 0 of 5 | 4 / 4 of 5 |
+| fixes marked verified but wrong | 3 / 2 | 0 / 0 |
+| questions citing the right line | 1 / 1 of 5 | 2 / 3 of 5 |
+| questions marked verified | 1 / 1 | 5 / 5 |
+| model calls | 10 / 10 | 33 / 39 |
+| input tokens | 12,435 / 12,435 | 5,034 / 6,309 |
+| output tokens | 1,679 / 1,712 | 2,835 / 3,626 |
+
+Checking patches against tests removed every false "verified" fix, and the rewrite format plus retries took a
+1.5B model from 0 to 4 correct fixes out of 5. Context packs used about half the input tokens despite 3-4x
+more calls. What it does not show: a "verified" answer to a question means its citations exist, not that it is
+right (5 verified, 2-3 right). Ten tasks on one tiny model is a smoke test, not a benchmark; escalation and
+7B+ models are not measured here.

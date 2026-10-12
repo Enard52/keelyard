@@ -2,6 +2,13 @@
 
 ## 0.1.0 (unreleased)
 
+### Always on and stronger helpers
+- Brief at session start and after compaction, past-session recall per prompt, outline/diff on repeat reads
+- Snapshot before destructive commands; rate-limited hints (no tests nearby, session budget); `[brain]` config
+- Swarm: `swarm_plan`, context packs, JSON answers, one-definition rewrites, patches tested in a copy,
+  best-of-N, retry with feedback, escalation, `subagent_tasks` for the host agent's subagents
+- Windows CI; fixes for Windows paths, cp1252 output, CRLF diffs, racing state directory
+
 ### CLI overhaul (breaking renames)
 - `x` → `run`, `compress` → `filter`, `timeline` → `rewind list -i`, `mem` → `memory`, `sym`/`map`/`outline` → `code find|map|outline`, `proof req` → `proof add`
 - New `init` (detects Claude Code, Codex, OpenCode), `doctor`, `status`, `selftest`

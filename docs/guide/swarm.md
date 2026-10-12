@@ -56,6 +56,7 @@ test_patches = true
 
 ## Measured
 
-See [Benchmarks](../BENCHMARKS.md#swarm-quality). Short version: with a 1.5B local model the checks remove
-every false "verified" patch, and context packs cut input tokens per call about 6x. Neither makes a 1.5B
-model good at fixing bugs. Use 7B or larger for real work.
+On 5 small bug fixes with a 1.5B local model, the old single-shot swarm got 0 right and marked 2-3 wrong
+patches as verified. The new pipeline got 4 of 5 right in both runs and marked no wrong patch verified, using
+about half the input tokens. For questions, "verified" only means the cited lines exist: 5 were verified, 2-3
+were right. Details: [Benchmarks](../BENCHMARKS.md#swarm-quality).
