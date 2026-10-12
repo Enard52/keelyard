@@ -12,10 +12,11 @@ import os
 import subprocess
 import tarfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
-from .config import Config
+from .config import VENDOR_DIRS, Config
+from .locking import file_lock
 
 
 class SnapshotError(RuntimeError):
@@ -31,17 +32,20 @@ class Step:
     ts: float
     files: list[str]
     note: str = ""
+    skipped: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
-        return json.dumps(self.__dict__)
+        return json.dumps(self.__dict__, ensure_ascii=False)
 
 
 class Shadow:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.root = cfg.root
-        self.gitdir = cfg.state / "shadow.git"
-        self.log = cfg.state / "steps.jsonl"
+        state = cfg.root / ".keelyard"  # not cfg.state: that creates the folder, even in $HOME
+        self.gitdir = state / "shadow.git"
+        self.log = state / "steps.jsonl"
+        self.lock = state / "timeline.lock"
 
     # -- plumbing -----------------------------------------------------------
     def _git(self, *args: str, input: bytes | None = None, check: bool = True) -> bytes:
@@ -53,16 +57,30 @@ class Shadow:
             "GIT_AUTHOR_EMAIL": "keelyard@localhost",
             "GIT_COMMITTER_NAME": "keelyard",
             "GIT_COMMITTER_EMAIL": "keelyard@localhost",
+            "GIT_OPTIONAL_LOCKS": "0",
         }
         env.pop("GIT_INDEX_FILE", None)
-        p = subprocess.run(["git", *args], cwd=self.root, env=env, input=input, capture_output=True)
+        try:
+            p = subprocess.run(["git", "-c", "core.quotepath=false", *args], cwd=self.root, env=env, input=input, capture_output=True)
+        except FileNotFoundError:
+            raise SnapshotError("git is not installed. Hint: install git (https://git-scm.com) - rewind needs it.") from None
         if check and p.returncode != 0:
             raise SnapshotError(f"git {' '.join(args)}: {p.stderr.decode(errors='replace').strip()}")
         return p.stdout
 
+    def _names(self, *args: str) -> list[str]:
+        return [f for f in self._git(*args, "-z").decode("utf-8", "surrogateescape").split("\0") if f]
+
     def _ensure(self) -> None:
+        self.cfg.require_project()
         if (self.gitdir / "HEAD").exists():
             return
+        self.cfg.state  # noqa: B018 - creates .keelyard with its .gitignore
+        with file_lock(self.lock):
+            if not (self.gitdir / "HEAD").exists():
+                self._init_repo()
+
+    def _init_repo(self) -> None:
         self.gitdir.mkdir(parents=True, exist_ok=True)
         self._git("init", "-q")
         self._git("config", "core.autocrlf", "false")
@@ -75,22 +93,74 @@ class Shadow:
         if not self.log.exists():
             return []
         out = []
-        for line in self.log.read_text().splitlines():
-            if line.strip():
-                out.append(Step(**json.loads(line)))
+        known = {f.name for f in fields(Step)}
+        for line in self.log.read_text(errors="replace").splitlines():
+            try:
+                d = json.loads(line)
+                out.append(Step(**{k: v for k, v in d.items() if k in known}))
+            except (ValueError, TypeError):
+                continue  # a torn or corrupted line must never break the timeline
         return out
 
     def get(self, n: int) -> Step:
         for s in self.steps():
             if s.step == n:
                 return s
-        raise SnapshotError(f"no step {n}")
+        last = self.steps()
+        span = f"steps 1-{last[-1].step} exist" if last else "the timeline is empty"
+        raise SnapshotError(f"no step {n} ({span}). Hint: run `keelyard rewind list`.")
 
     # -- operations ---------------------------------------------------------
     def snapshot(self, tool: str = "manual", session: str = "", note: str = "") -> Step | None:
         """Record the worktree. Returns None when nothing changed since the last step."""
         self._ensure()
-        self._git("add", "-A", ".")
+        with file_lock(self.lock):
+            return self._snapshot(tool, session, note)
+
+    def _stage(self) -> list[str]:
+        """Stage the worktree into the shadow index; return paths skipped for size."""
+        limit = float(self.cfg.section("rewind").get("max_file_mb", 20)) * 1024 * 1024
+        self._git("add", "-A", "--ignore-errors", ".", check=False)
+        nested = []
+        skipped = []
+        for rel in self._names("ls-files", "--cached", "--others", "--exclude-standard"):
+            path = self.root / rel
+            if rel.endswith("/") or (path.is_dir() and (path / ".git").exists()):
+                nested.append(rel.rstrip("/"))
+                continue
+            try:
+                if path.is_file() and not path.is_symlink() and path.stat().st_size > limit:
+                    skipped.append(rel)
+            except OSError:
+                continue
+        # nested repositories (monorepos, vendored checkouts) would become opaque gitlinks: add their files
+        for sub in nested:
+            if any(part in VENDOR_DIRS for part in Path(sub).parts):
+                continue
+            self._git("rm", "--cached", "-q", "--ignore-unmatch", "--", sub, check=False)
+            entries = []
+            for dirpath, dirnames, filenames in os.walk(self.root / sub):
+                dirnames[:] = [d for d in dirnames if d not in VENDOR_DIRS]
+                for name in filenames:
+                    p = Path(dirpath) / name
+                    rel = p.relative_to(self.root).as_posix()
+                    try:
+                        if p.is_symlink() or p.stat().st_size > limit:
+                            skipped.append(rel) if not p.is_symlink() else None
+                            continue
+                    except OSError:
+                        continue
+                    entries.append(rel)
+            if entries:
+                shas = self._git("hash-object", "-w", "--stdin-paths", input="\n".join(entries).encode()).decode().split()
+                info = "".join(f"100644 {sha}\t{rel}\n" for sha, rel in zip(shas, entries, strict=True))
+                self._git("update-index", "--add", "--index-info", input=info.encode())
+        if skipped:
+            self._git("rm", "--cached", "-q", "--ignore-unmatch", "--", *skipped, check=False)
+        return sorted(skipped)
+
+    def _snapshot(self, tool: str, session: str, note: str) -> Step | None:
+        skipped = self._stage()
         tree = self._git("write-tree").decode().strip()
         prev = self.steps()
         parent = prev[-1].sha if prev else None
@@ -104,11 +174,11 @@ class Shadow:
         sha = self._git(*args).decode().strip()
         self._git("update-ref", "refs/heads/timeline", sha)
         if parent:
-            files = self._git("diff", "--name-only", parent, sha).decode().split()
+            files = self._names("diff", "--name-only", parent, sha)
         else:
-            files = self._git("ls-tree", "-r", "--name-only", sha).decode().split()
-        step = Step(prev[-1].step + 1 if prev else 1, sha, tool, session, time.time(), files, note)
-        with self.log.open("a") as f:
+            files = self._names("ls-tree", "-r", "--name-only", sha)
+        step = Step(prev[-1].step + 1 if prev else 1, sha, tool, session, time.time(), files, note, skipped)
+        with self.log.open("a", encoding="utf-8") as f:
             f.write(step.to_json() + "\n")
         return step
 
@@ -122,17 +192,22 @@ class Shadow:
     def rewind(self, n: int) -> dict:
         """Restore the worktree to step n. A safety snapshot is taken first, so rewind is undoable."""
         target = self.get(n)
-        safety = self.snapshot(tool="pre-rewind", note=f"before rewind to {n}")
+        self._ensure()
+        with file_lock(self.lock):
+            return self._rewind(n, target)
+
+    def _rewind(self, n: int, target: Step) -> dict:
+        safety = self._snapshot("pre-rewind", "", f"before rewind to {n}")
         cur_step = safety or self.steps()[-1]
         current = cur_step.sha
-        added = [f for f in self._git("diff", "--name-only", "--diff-filter=A", target.sha, current).decode().splitlines() if f]
+        added = self._names("diff", "--name-only", "--diff-filter=A", target.sha, current)
         for rel in added:
             p = self.root / rel
             if p.is_file() or p.is_symlink():
                 p.unlink()
         self._git("read-tree", target.sha)
         self._git("checkout-index", "-a", "-f")
-        after = self.snapshot(tool="rewind", note=f"restored step {n}")
+        after = self._snapshot("rewind", "", f"restored step {n}")
         return {
             "restored": n,
             "removed": added,

@@ -200,12 +200,14 @@ class Memory:
         if not words:
             return []
         fts_q = " OR ".join(f'"{w}"' for w in words[:16])
-        sql = ("SELECT c.agent, c.session, c.project, c.ts, c.role, snippet(fts, 0, '[', ']', ' … ', 40) "
+        sql = ("SELECT c.agent, c.session, c.project, c.ts, c.role, snippet(fts, 0, '', '', ' … ', 40) "
                "FROM fts JOIN chunks c ON c.id = fts.rowid WHERE fts MATCH ?")
         args: list = [fts_q]
         if project:
-            sql += " AND c.project LIKE ?"
-            args.append(f"%{project}%")
+            # exact folder or a subfolder of it; '/shop' must not match '/shop2'
+            esc = project.rstrip("/\\").replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            sql += " AND (c.project = ? OR c.project LIKE ? ESCAPE '\\')"
+            args += [project.rstrip("/\\"), esc + "/%"]
         sql += " ORDER BY bm25(fts) LIMIT ?"
         args.append(limit * 3)
         out, used = [], 0

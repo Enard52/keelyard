@@ -53,7 +53,7 @@ def test_ingest_search_redact(tmp_path):
 
     hits = mem.search("webhook signature")
     assert hits and hits[0]["agent"] == "claude-code"
-    assert "[raw] request [body]" in format_hits(mem.search("verify webhook raw body"))
+    assert "raw request body" in format_hits(mem.search("verify webhook raw body"))
     assert mem.search("sqlite migration")[0]["agent"] == "codex"
     assert mem.search("hydration")[0]["agent"] == "opencode"
     assert mem.search("webhook", project="/work/api") == []

@@ -9,6 +9,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -79,6 +80,17 @@ def run_compact(cfg: Config, cmd: str, timeout: int = 600) -> dict:
 
 
 # --------------------------------------------------------------------------- reads
+
+def normalize_path(file: str) -> str:
+    """Accept Windows-style separators from agents on any OS."""
+    if os.sep == "/" and "\\" in file:
+        file = file.replace("\\", "/")
+    return file
+
+
+def is_binary(data: bytes) -> bool:
+    return b"\0" in data[:8192]
+
 class ReadCache:
     """Per-session memory of what the agent already read, keyed by content hash."""
 
@@ -93,13 +105,16 @@ class ReadCache:
         return json.loads(self.path.read_text()) if self.path.exists() else {}
 
     def _save(self, d: dict) -> None:
-        self.path.write_text(json.dumps(d))
+        tmp = self.path.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(d))
+        os.replace(tmp, self.path)  # atomic: concurrent hooks never see half a file
 
     def reset(self) -> None:
         """Called when the agent's context is compacted: earlier reads are gone from its window."""
         self.path.unlink(missing_ok=True)
 
     def resolve(self, file: str) -> Path:
+        file = normalize_path(file)
         p = (self.cfg.root / file).resolve() if not Path(file).is_absolute() else Path(file).resolve()
         if self.cfg.root not in p.parents and p != self.cfg.root:
             raise PermissionError(f"{file} is outside the project root")
@@ -120,7 +135,11 @@ class ReadCache:
 
     def read(self, file: str, start: int = 1, end: int | None = None, force: bool = False) -> str:
         p = self.resolve(file)
+        if not p.is_file():
+            raise FileNotFoundError(f"{file}: no such file in {self.cfg.root}")
         data = p.read_bytes()
+        if is_binary(data):
+            return f"[keelyard] {file} is a binary file ({len(data):,} bytes); not shown."
         sha = hashlib.sha256(data).hexdigest()[:16]
         prev = self.seen(p)
         whole = start <= 1 and end is None

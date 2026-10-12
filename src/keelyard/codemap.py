@@ -10,11 +10,13 @@ the agent can read exactly the range it needs.
 from __future__ import annotations
 
 import ast
+import os
 import re
 import subprocess
 from collections import OrderedDict
 from pathlib import Path
 
+from .config import VENDOR_DIRS
 from .saver import approx_tokens
 
 DEF_PATTERNS = {
@@ -64,30 +66,50 @@ def _py_outline(src: str) -> list[str]:
     return out
 
 
+MAX_OUTLINE = 400
+
+
 def outline(path: Path) -> str:
-    src = path.read_text(errors="replace")
+    data = path.read_bytes()
+    if b"\0" in data[:8192]:
+        return f"{path.name}: binary file ({len(data):,} bytes), no outline"
+    src = data.decode(errors="replace")
     ext = ALIASES.get(path.suffix, path.suffix)
     lines: list[str]
     if ext == ".py":
         try:
             lines = _py_outline(src)
-        except SyntaxError:
-            lines = []
+        except (SyntaxError, ValueError, RecursionError):  # py2 code, null bytes, absurd nesting
+            rx = re.compile(r"^\s*(async\s+def|def|class)\s+\w+")
+            lines = [f"{i:>5} {ln.rstrip()[:160]}" for i, ln in enumerate(src.splitlines(), 1) if rx.search(ln)]
     else:
         pat = DEF_PATTERNS.get(ext)
         if not pat:
             return f"(no outline rules for {path.suffix}; {len(src.splitlines())} lines)"
         rx = re.compile(pat)
         lines = [f"{i:>5} {ln.rstrip()[:160]}" for i, ln in enumerate(src.splitlines(), 1) if rx.search(ln)]
+    if len(lines) > MAX_OUTLINE:
+        lines = lines[:MAX_OUTLINE] + [f"  ... {len(lines) - MAX_OUTLINE} more definitions (use find_symbol)"]
     head = f"{path.name}: {len(src.splitlines())} lines, ~{approx_tokens(src)} tokens; outline ~{approx_tokens(chr(10).join(lines))}"
     return head + "\n" + "\n".join(lines)
 
 
 def tracked_files(root: Path) -> list[str]:
-    p = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=root, capture_output=True, text=True)
-    files = p.stdout.splitlines() if p.returncode == 0 else [
-        str(f.relative_to(root)) for f in root.rglob("*") if f.is_file() and ".git" not in f.parts]
-    return [f for f in files if not f.startswith(".keelyard/")]
+    try:
+        p = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files", "-co", "--exclude-standard", "-z"],
+                           cwd=root, capture_output=True)
+        ok = p.returncode == 0
+    except FileNotFoundError:  # git not installed
+        ok = False
+    if ok:
+        files = [f for f in p.stdout.decode("utf-8", "surrogateescape").split("\0") if f]
+    else:
+        files = []
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(d for d in dirnames if d not in VENDOR_DIRS and not d.startswith("."))
+            rel = Path(dirpath).relative_to(root)
+            files += [(rel / n).as_posix() for n in sorted(filenames)]
+    return [f for f in files if not f.startswith(".keelyard/") and not f.endswith("/")]
 
 
 def project_map(root: Path, max_dirs: int = 60) -> str:

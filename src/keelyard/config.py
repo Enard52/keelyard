@@ -22,6 +22,7 @@ app_url = ""
 max_blocks = 3
 
 [rewind]
+max_file_mb = 20             # larger files are left out of snapshots (listed as skipped)
 enabled = true
 # Tools that trigger a snapshot after they run.
 snapshot_tools = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "apply_patch", "write", "edit", "bash", "patch"]
@@ -66,6 +67,14 @@ api_key_env = "ANTHROPIC_API_KEY"
 """
 
 
+class ProjectError(RuntimeError):
+    """Raised when keelyard is asked to act outside a real project."""
+
+
+VENDOR_DIRS = {".git", ".keelyard", "node_modules", ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache",
+               ".ruff_cache", "dist", "build", "target", ".next", ".tox", ".idea", ".gradle"}
+
+
 def find_root(start: Path | None = None) -> Path:
     """Project root: nearest ancestor with .keelyard or .git, else cwd."""
     env = os.environ.get("KEELYARD_ROOT")
@@ -90,6 +99,14 @@ class Config:
     root: Path
     raw: dict[str, Any] = field(default_factory=dict)
 
+    def require_project(self) -> None:
+        """Refuse to snapshot or write state in $HOME or / unless the user ran `keelyard init` there."""
+        marker = (self.root / ".keelyard").is_dir()
+        risky = self.root in (Path.home().resolve(), Path(self.root.anchor))
+        if not marker and (risky or not (self.root / ".git").exists()):
+            raise ProjectError(f"{self.root} is not a git repository or keelyard project. "
+                               "Hint: run `keelyard init` in your project folder.")
+
     @property
     def state(self) -> Path:
         d = self.root / ".keelyard"
@@ -113,12 +130,17 @@ class Config:
 def load(root: Path | None = None) -> Config:
     root = root or find_root()
     path = root / ".keelyard" / "config.toml"
-    raw = tomllib.loads(path.read_text()) if path.exists() else {}
+    try:
+        raw = tomllib.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except tomllib.TOMLDecodeError as e:
+        raise ProjectError(f"{path} is not valid TOML: {e}. Hint: fix the line, or delete the file and run `keelyard init`.") from None
     return Config(root=root, raw=raw)
 
 
 def init(root: Path) -> Path:
     cfg = Config(root=root)
+    if root in (Path.home().resolve(), Path(root.anchor)):
+        raise ProjectError(f"refusing to set up keelyard in {root}. Hint: cd into a project folder first.")
     path = cfg.state / "config.toml"
     if not path.exists():
         path.write_text(DEFAULT_CONFIG)

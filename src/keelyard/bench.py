@@ -78,7 +78,7 @@ def bench_memory(mem: Memory) -> dict:
     sessions = mem.db.execute(
         "SELECT session, min(id) FROM chunks WHERE role='user' GROUP BY session ORDER BY random() LIMIT 50").fetchall()
     if not sessions:
-        return {"skipped": "memory store is empty (run: keelyard mem ingest)"}
+        return {"skipped": "memory store is empty (run: keelyard memory index)"}
     hits, ratio = 0, []
     for sid, first in sessions:
         q = mem.db.execute("SELECT text FROM chunks WHERE id=?", (first,)).fetchone()[0][:200]
@@ -94,22 +94,28 @@ def bench_memory(mem: Memory) -> dict:
 
 
 def bench_snapshot(cfg: Config, runs: int = 5) -> dict:
-    sh = Shadow(cfg)
-    sh.snapshot("bench-baseline")
-    probe = cfg.state / ".." / ".keelyard-bench-probe"
-    times = []
-    try:
-        for i in range(runs):
-            probe.write_text(f"probe {i} {time.time()}\n")
+    """Time snapshots of this worktree into a throwaway shadow repo.
+
+    Nothing is written to the project: no probe files and no steps on the user's timeline.
+    Each timed run re-stages the whole tree (the cost an agent pays per edit hook).
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="keelyard-bench-") as tmp:
+        sh = Shadow(cfg)
+        sh.gitdir, sh.log, sh.lock = Path(tmp) / "shadow.git", Path(tmp) / "steps.jsonl", Path(tmp) / "lock"
+        t0 = time.perf_counter()
+        first = sh.snapshot("bench-baseline")
+        first_ms = 1000 * (time.perf_counter() - t0)
+        times = []
+        for _ in range(runs):
+            (Path(tmp) / "shadow.git" / "index").unlink(missing_ok=True)  # force a full re-stage
             t0 = time.perf_counter()
             sh.snapshot("bench")
             times.append(time.perf_counter() - t0)
-    finally:
-        probe.unlink(missing_ok=True)
-        sh.snapshot("bench-cleanup")
-    n_files = len(sh._git("ls-files").decode().splitlines())
-    return {"tracked_files": n_files, "runs": runs, "median_ms": round(1000 * statistics.median(times), 1),
-            "max_ms": round(1000 * max(times), 1)}
+        n_files = len(first.files) if first else 0
+    return {"files": n_files, "runs": runs, "first_ms": round(first_ms, 1),
+            "median_ms": round(1000 * statistics.median(times), 1), "max_ms": round(1000 * max(times), 1)}
 
 
 def run_all(cfg: Config) -> dict:
@@ -121,8 +127,8 @@ def run_all(cfg: Config) -> dict:
     lines = ["keelyard bench (approx tokens = chars/4)"]
     for k, v in res.items():
         lines.append(f"\n[{k}]")
-        lines += [f"  {kk}: {vv}" for kk, vv in v.items() if kk != "files"]
-        for r in v.get("files", []) if isinstance(v, dict) else []:
+        lines += [f"  {kk}: {vv}" for kk, vv in v.items() if not isinstance(vv, list)]
+        for r in v.get("files", []) if isinstance(v.get("files"), list) else []:
             lines.append(f"    {r['file']}: {r['raw']} -> {r['out']}")
     res["text"] = "\n".join(lines)
     return res

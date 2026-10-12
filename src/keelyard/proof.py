@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -58,7 +59,12 @@ class Proof:
     # -- persistence --------------------------------------------------------
     def load(self) -> Bundle:
         if self.path.exists():
-            return Bundle(**json.loads(self.path.read_text()))
+            try:
+                d = json.loads(self.path.read_text())
+                known = Bundle.__dataclass_fields__
+                return Bundle(**{k: v for k, v in d.items() if k in known})
+            except (ValueError, TypeError):
+                self.path.replace(self.path.with_suffix(".corrupt.json"))  # keep it for inspection, start clean
         return Bundle(session=self.session)
 
     def save(self, b: Bundle) -> None:
@@ -102,12 +108,15 @@ class Proof:
             raise ValueError("no test command; set [proof].test_cmd in .keelyard/config.toml")
         t0 = time.time()
         try:
-            p = subprocess.run(shlex.split(cmd), cwd=self.cfg.root, capture_output=True, text=True, timeout=timeout)
+            p = subprocess.run(shlex.split(cmd, posix=os.name != 'nt'), cwd=self.cfg.root, capture_output=True, text=True, timeout=timeout)
             code, out = p.returncode, (p.stdout + p.stderr)
         except subprocess.TimeoutExpired as e:
             code, out = 124, f"timeout after {timeout}s\n{e.stdout or ''}"
-        except FileNotFoundError as e:
-            code, out = 127, str(e)
+        except FileNotFoundError:
+            exe = shlex.split(cmd)[0]
+            code, out = 127, f"{exe}: command not found. Hint: install it, or set [proof].test_cmd in .keelyard/config.toml"
+        except ValueError as e:  # unbalanced quotes in the command
+            code, out = 2, f"could not parse test command {cmd!r}: {e}"
         run = {"phase": phase, "cmd": cmd, "exit": code, "ts": time.time(), "seconds": round(time.time() - t0, 2),
                "tail": redact(out[-TAIL:])}
         b = self.load()
@@ -140,7 +149,9 @@ class Proof:
         b = self.load()
         last_edit = self.last_edit_ts()
         if last_edit is None:
-            return []  # nothing changed in this session: a pure Q&A turn needs no proof
+            # nothing changed in this session: a pure Q&A turn needs no proof, but a checklist that
+            # was written down still has to be ticked off
+            return [f"Requirement #{r['id']} not verified: {r['text']}" for r in b.requirements if not r["done"]]
         gaps = []
         if not b.requirements:
             gaps.append("No requirement checklist. Call proof_requirements with the user's asks, one per item.")

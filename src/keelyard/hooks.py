@@ -142,12 +142,20 @@ def main(agent: str, event: str) -> int:
     except json.JSONDecodeError:
         payload = {}
     cwd = payload.get("cwd") or payload.get("directory")
-    cfg = config.load(config.find_root(Path(cwd)) if cwd else None)
+    try:
+        start = Path(cwd) if cwd and Path(cwd).is_dir() else None
+        cfg = config.load(config.find_root(start))
+        cfg.require_project()
+    except Exception:  # noqa: BLE001 - not a project, or a broken config: stay out of the agent's way
+        return 0
     try:
         out = handle(event, payload, cfg)
     except Exception:  # noqa: BLE001
-        with (cfg.state / "hook.log").open("a") as f:
+        log = cfg.state / "hook.log"
+        with log.open("a", encoding="utf-8") as f:
             f.write(f"{time.ctime()} {agent} {event}\n{traceback.format_exc()}\n")
+        if log.stat().st_size > 1_000_000:  # keep the log bounded
+            log.write_text(log.read_text(errors="replace")[-200_000:])
         return 0
     if out:
         print(json.dumps(out))

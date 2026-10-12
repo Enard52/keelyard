@@ -1,4 +1,8 @@
-"""keelyard command line."""
+"""keelyard command line.
+
+Every command is `keelyard <group> <action>`; the hidden `hook` and `mcp`
+commands are what the agents call and are not meant for people.
+"""
 
 from __future__ import annotations
 
@@ -6,217 +10,770 @@ import argparse
 import asyncio
 import datetime as dt
 import json
+import shlex
 import sys
+import textwrap
 from pathlib import Path
 
 from . import __version__, config, session
 
+SUPPRESS = argparse.SUPPRESS
 
-def _cfg():
+OVERVIEW = """\
+keelyard makes coding agents prove their work, lets you undo any step,
+and keeps their context small. Works with Claude Code, Codex and OpenCode.
+
+start here:
+  init              set up this project and wire every agent it finds
+  doctor            check that everything is installed and wired correctly
+  status            what keelyard knows about this project right now
+
+everyday:
+  rewind            list, inspect and undo agent steps
+  proof             the evidence an agent collected before saying "done"
+  run               run a command and print a compact version of its output
+  code              outline a file, map the project, find a symbol
+  memory            search past sessions across all your agents
+  usage             tokens and cost from your local agent logs
+
+more:
+  swarm             fan small, checkable tasks out to a cheap model
+  arena             run one task across agents and models, compare results
+  bench             measure savings on your own machine
+  selftest          a scripted agent completes a full task through the agent interface
+  install/uninstall wire or unwire one agent by hand
+  filter            compact output piped on stdin
+  recall            print the full output that `run` shortened
+"""
+
+EXAMPLES = {
+    "init": """examples:
+  keelyard init                    # detect agents, wire them, take a first snapshot
+  keelyard init --agent claude     # only Claude Code
+  keelyard init --dry-run          # show what would change""",
+    "rewind": """examples:
+  keelyard rewind list             # every step agents took, newest last
+  keelyard rewind show 12          # the diff that step 12 made
+  keelyard rewind to 9             # put the files back as they were after step 9
+  keelyard rewind fork 9 ../try-b  # copy step 9 into another folder
+  keelyard rewind snap             # take a snapshot by hand""",
+    "proof": """examples:
+  keelyard proof status
+  keelyard proof add "discount applies once" "empty cart costs 0"
+  keelyard proof check 1 "test_discount_once passes"
+  keelyard proof test after
+  keelyard proof report            # writes an HTML report""",
+    "run": """examples:
+  keelyard run pytest -q
+  keelyard run git log --stat
+  keelyard run -- ruff check .     # use -- if the command has its own flags first""",
+    "code": """examples:
+  keelyard code outline src/app.py
+  keelyard code map
+  keelyard code find Cart""",
+    "memory": """examples:
+  keelyard memory index            # read new sessions from all agents
+  keelyard memory search "rate limit retry"
+  keelyard memory stats""",
+}
+
+
+class Fail(Exception):
+    """A user-facing error; the message may include `Hint: ...`. code 2 means a usage error."""
+
+    def __init__(self, message: str, code: int = 1):
+        super().__init__(message)
+        self.code = code
+
+
+def _cfg() -> config.Config:
     return config.load()
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="keelyard", description="Proof, rewind, helper swarm, usage saver and memory for AI coding agents.")
-    ap.add_argument("--version", action="version", version=__version__)
-    sub = ap.add_subparsers(dest="cmd", required=True)
+EXIT_CODES = """exit codes:
+  0  success
+  1  error (the message says what went wrong and how to fix it)
+  2  usage error (bad command or arguments)
+  3  a check did not pass (doctor found a problem, proof not complete, tests failed, selftest failed)
+  `keelyard run` exits with the code of the command it ran."""
 
-    sub.add_parser("init", help="create .keelyard/config.toml")
-    p = sub.add_parser("install", help="wire hooks + MCP for an agent")
-    p.add_argument("agent", choices=["claude", "codex", "opencode"])
-    p = sub.add_parser("hook", help="hook entry point (called by agents)")
-    p.add_argument("agent")
-    p.add_argument("event")
-    sub.add_parser("mcp", help="run the MCP stdio server")
 
-    pr = sub.add_parser("proof", help="proof-of-work bundle").add_subparsers(dest="sub", required=True)
-    pr.add_parser("status")
-    x = pr.add_parser("req")
+def _json_parent() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(add_help=False)
+    p.add_argument("--json", action="store_true", help="print one JSON object on stdout (for scripts and agents)")
+    return p
+
+
+def _parser() -> argparse.ArgumentParser:
+    fmt = argparse.RawDescriptionHelpFormatter
+    jp = _json_parent()
+    ap = argparse.ArgumentParser(prog="keelyard", usage="keelyard <command> [options]", description=OVERVIEW, formatter_class=fmt,
+                                 epilog=EXIT_CODES + "\n\nRun `keelyard <command> --help` for examples. Every command accepts --json.")
+    ap.add_argument("--version", action="version", version=f"keelyard {__version__}")
+    sub = ap.add_subparsers(dest="cmd", metavar="<command>", title="commands")
+
+    def cmd(name, help, examples=None, leaf=True, **kw):
+        return sub.add_parser(name, help=help, description=help, epilog=examples or EXAMPLES.get(name), formatter_class=fmt,
+                              parents=[jp] if leaf else [], **kw)
+
+    class _Group:
+        def __init__(self, s):
+            self.s = s
+
+        def add_parser(self, name, **kw):
+            return self.s.add_parser(name, parents=[jp], description=kw.get("help"), **kw)
+
+    def group(parent, name, help):
+        s = parent.add_subparsers(dest=name, metavar="<action>", title="actions")
+        s.required = True
+        return _Group(s)
+
+    p = cmd("init", "set up this project and wire the agents found on this machine")
+    p.add_argument("--agent", action="append", choices=["claude", "codex", "opencode"], help="wire only this agent (repeatable)")
+    p.add_argument("--no-agents", action="store_true", help="create the config but wire no agent")
+    p.add_argument("--dry-run", action="store_true", help="print what would change and stop")
+
+    cmd("doctor", "check the installation and wiring; exits 3 if something is broken",
+        "examples:\n  keelyard doctor\n  keelyard doctor --json")
+    cmd("status", "show what keelyard knows about this project", "examples:\n  keelyard status\n  keelyard status --json")
+    p = cmd("selftest", "a scripted agent runs a full task through MCP and hooks in a temp folder",
+            "examples:\n  keelyard selftest\n  keelyard selftest --keep   # keep the temp project to inspect")
+    p.add_argument("--keep", action="store_true", help="keep the temporary project")
+
+    for name, verb in (("install", "wire"), ("uninstall", "unwire")):
+        p = cmd(name, f"{verb} one agent in this project", f"examples:\n  keelyard {name} claude\n  keelyard {name} codex")
+        p.add_argument("agent", choices=["claude", "codex", "opencode"])
+
+    r = group(cmd("rewind", "list, inspect and undo agent steps", leaf=False), "action", "")
+    x = r.add_parser("list", help="list snapshots")
+    x.add_argument("-i", "--interactive", action="store_true", help="open the timeline browser")
+    x.add_argument("-n", type=int, default=30, help="show the last N steps (default 30)")
+    x = r.add_parser("show", help="show the diff a step made")
+    x.add_argument("step", type=int)
+    x = r.add_parser("to", help="restore files to a step (undoable)")
+    x.add_argument("step", type=int)
+    x = r.add_parser("fork", help="copy a step into a new folder")
+    x.add_argument("step", type=int)
+    x.add_argument("dest", type=Path)
+    r.add_parser("snap", help="take a snapshot now")
+
+    r = group(cmd("proof", "the evidence an agent collected before saying done", leaf=False), "action", "")
+    r.add_parser("status", help="what is proven and what is missing")
+    x = r.add_parser("add", help="add requirements")
     x.add_argument("items", nargs="+")
-    x = pr.add_parser("check")
+    x = r.add_parser("check", help="mark a requirement met, with evidence")
     x.add_argument("id", type=int)
     x.add_argument("evidence")
-    x = pr.add_parser("test")
+    x = r.add_parser("test", help="run the test command and record the result")
     x.add_argument("phase", choices=["before", "after"])
-    x.add_argument("--cmd", dest="test_cmd")
-    x = pr.add_parser("shot")
+    x.add_argument("--cmd", dest="test_cmd", help="override [proof].test_cmd")
+    x = r.add_parser("shot", help="screenshot the app")
     x.add_argument("url", nargs="?")
-    pr.add_parser("report")
+    x = r.add_parser("report", help="write the HTML report")
+    x.add_argument("--open", action="store_true", help="open it in the browser")
 
-    p = sub.add_parser("timeline", help="list snapshots (-i for the interactive TUI)")
-    p.add_argument("-i", action="store_true")
-    sub.add_parser("snapshot", help="take a manual snapshot")
-    p = sub.add_parser("diff")
-    p.add_argument("step", type=int)
-    p = sub.add_parser("rewind")
-    p.add_argument("step", type=int)
-    p = sub.add_parser("fork")
-    p.add_argument("step", type=int)
-    p.add_argument("dest", type=Path)
-
-    p = sub.add_parser("swarm", help="run helper tasks from a JSON file ([{kind,prompt,files}])")
-    p.add_argument("tasks", type=Path)
-    p.add_argument("--model", help="[models.<key>] to use")
-
-    p = sub.add_parser("compress", help="filter stdin; pass the command for command-aware rules")
-    p.add_argument("--cmd", dest="for_cmd", default="")
-    p = sub.add_parser("x", help="run a command with command-aware output filtering")
+    p = cmd("run", "run a command and print a compact version of its output")
     p.add_argument("command", nargs=argparse.REMAINDER)
-    p = sub.add_parser("recall", help="print raw output that a filter elided")
+    p = cmd("filter", "compact output piped on stdin", "examples:\n  pytest -q 2>&1 | keelyard filter --for 'pytest -q'")
+    p.add_argument("--for", dest="for_cmd", default="", help="the command that produced the output (picks the rules)")
+    p = cmd("recall", "print the full output that `run` shortened", "examples:\n  keelyard recall 3f9a1c2b7d4e")
     p.add_argument("id")
-    p = sub.add_parser("outline", help="signatures-only view of a file")
-    p.add_argument("path", type=Path)
-    sub.add_parser("map", help="compact project map")
-    p = sub.add_parser("sym", help="find where a symbol is defined")
-    p.add_argument("name")
-    p = sub.add_parser("usage", help="token usage from local agent logs")
-    p.add_argument("--by", choices=["day", "model", "agent"], default="day")
-    ar = sub.add_parser("arena", help="run one task across agents/models").add_subparsers(dest="sub", required=True)
-    x = ar.add_parser("run")
-    x.add_argument("spec", type=Path)
-    x.add_argument("--out", type=Path, default=Path("arena-results"))
-    x.add_argument("--only", nargs="*")
-    x = ar.add_parser("render")
-    x.add_argument("out", type=Path)
 
-    m = sub.add_parser("mem", help="unified memory").add_subparsers(dest="sub", required=True)
-    m.add_parser("ingest")
-    m.add_parser("stats")
-    x = m.add_parser("search")
+    r = group(cmd("code", "outline a file, map the project, find a symbol", leaf=False), "action", "")
+    x = r.add_parser("outline", help="signatures only")
+    x.add_argument("path", type=Path)
+    r.add_parser("map", help="compact project map")
+    x = r.add_parser("find", help="where a symbol is defined")
+    x.add_argument("name")
+
+    r = group(cmd("memory", "search past sessions across all your agents", leaf=False), "action", "")
+    r.add_parser("index", help="read new sessions from Claude Code, Codex and OpenCode")
+    r.add_parser("stats", help="what is indexed")
+    x = r.add_parser("search", help="full-text search")
     x.add_argument("query")
     x.add_argument("--project")
-    x.add_argument("--budget", type=int, default=2400)
+    x.add_argument("--budget", type=int, default=2400, help="max characters returned (default 2400)")
 
-    p = sub.add_parser("bench", help="measure savings on your own local data")
-    p.add_argument("--json", action="store_true")
+    p = cmd("usage", "tokens and cost from your local agent logs", "examples:\n  keelyard usage\n  keelyard usage --by model")
+    p.add_argument("--by", choices=["day", "model", "agent"], default="day")
 
-    a = ap.parse_args(argv)
+    r = group(cmd("swarm", "fan small, checkable tasks out to a cheap model",
+                  'examples:\n  keelyard swarm run tasks.json   # [{"kind": "find", "prompt": "...", "files": ["a.py"]}]', leaf=False), "action", "")
+    x = r.add_parser("run", help="run tasks from a JSON file")
+    x.add_argument("tasks", type=Path)
+    x.add_argument("--model", help="a [models.<key>] from the config (default: [swarm].helper_model)")
 
-    if a.cmd == "init":
-        print(config.init(config.find_root()))
-    elif a.cmd == "install":
-        from .adapters.install import install
+    r = group(cmd("arena", "run one task across agents and models, compare results",
+                  "examples:\n  keelyard arena run examples/arena/discount/task.toml\n  keelyard arena render arena-results", leaf=False), "action", "")
+    x = r.add_parser("run", help="run a task spec")
+    x.add_argument("spec", type=Path)
+    x.add_argument("--out", type=Path, default=Path("arena-results"))
+    x.add_argument("--only", nargs="*", metavar="NAME", help="only these contenders")
+    x = r.add_parser("render", help="re-render the report from results.json")
+    x.add_argument("out", type=Path)
 
-        root = config.find_root()
+    cmd("bench", "measure savings on your own machine", "examples:\n  keelyard bench\n  keelyard bench --json")
+
+    p = sub.add_parser("hook", help=SUPPRESS)
+    p.add_argument("agent")
+    p.add_argument("event")
+    sub.add_parser("mcp", help=SUPPRESS)
+    sub._choices_actions = [a for a in sub._choices_actions if a.help != SUPPRESS]  # hide internals from --help
+    return ap
+
+
+# -- commands ------------------------------------------------------------------
+# Each do_* returns (exit_code, data). Human output is printed only when --json is off;
+# with --json, main() prints `data` as one JSON object and nothing else goes to stdout.
+
+CHECK_FAILED = 3
+
+
+def _human(a) -> bool:
+    return not getattr(a, "json", False)
+
+
+def do_init(a):
+    from . import ui
+    from .adapters.install import AGENTS, detect, install, installed
+    from .snapshot import Shadow
+
+    root = config.find_root()
+    found = detect()
+    agents = a.agent or ([] if a.no_agents else [x for x in AGENTS if x in found])
+    data = {"root": str(root), "detected": found, "agents": agents, "dry_run": a.dry_run, "changed": [], "snapshot": None}
+    h = _human(a)
+    if h:
+        ui.heading("keelyard init", str(root))
+        if not (root / ".git").exists():
+            ui.out.print("  [warn]not a git repository; keelyard still works here.[/]")
+        ui.out.print("\n  [muted]agents on this machine[/]")
+        for x in AGENTS:
+            ui.line("ok" if x in found else "skip", x, found.get(x, "not found"))
+    if a.dry_run:
+        data["changed"] = [".keelyard/config.toml"] + [f"wire {x}" for x in agents]
+        if h:
+            ui.out.print("\n  [muted]would create[/] .keelyard/config.toml")
+            for x in agents:
+                ui.out.print(f"  [muted]would wire[/]   {x}")
+        return 0, data
+    if h:
+        ui.out.print()
+    cfg_path = config.init(root)
+    data["changed"].append(str(cfg_path.relative_to(root)))
+    if h:
+        ui.line("ok", "config", str(cfg_path.relative_to(root)))
+    for x in agents:
+        was = installed(x, root)
+        items = install(x, root)
+        data["changed"] += [f"{x}: {i.splitlines()[0]}" for i in items]
+        if h:
+            for n, item in enumerate(items):
+                first, *rest = item.splitlines()
+                ui.line("ok", x if n == 0 else "", first + (" (updated)" if was and n == 0 else ""))
+                for r in rest:
+                    ui.out.print(f"      [muted]{r}[/]")
+    if not agents and h:
+        ui.line("skip", "agents", "none wired; run `keelyard install <agent>` later")
+    step = Shadow(config.load(root)).snapshot("baseline", note="keelyard init")
+    data["snapshot"] = {"step": step.step, "files": len(step.files), "skipped": step.skipped} if step else None
+    if h:
+        ui.line("ok", "first snapshot", f"#{step.step}, {len(step.files)} files" if step else "already up to date")
+        if step and step.skipped:
+            ui.line("warn", "skipped", f"{len(step.skipped)} files over [rewind].max_file_mb")
+        ui.out.print("\n  next: start your agent as usual, then run [key]keelyard status[/].")
+        if "codex" in agents:
+            ui.out.print("  codex: run [key]/hooks[/] once inside Codex to trust the new hooks.")
+    return 0, data
+
+
+def _checks() -> list[tuple[str, str, str, str]]:
+    """(section, state, label, detail)."""
+    import importlib.util
+    import shutil
+    import subprocess
+
+    from .adapters.install import AGENTS, detect, installed
+
+    rows = []
+    v = sys.version_info
+    rows.append(("system", "ok" if v >= (3, 11) else "bad", "python", f"{v.major}.{v.minor}.{v.micro}"))
+    if shutil.which("git"):
+        ver = subprocess.run(["git", "--version"], capture_output=True, text=True).stdout.strip().removeprefix("git version ")
+        rows.append(("system", "ok", "git", ver))
+    else:
+        rows.append(("system", "bad", "git", "not found. Hint: install git; rewind needs it."))
+    for mod, why, needed, extra in (("mcp", "MCP server", True, ""), ("httpx", "swarm", True, ""), ("rich", "terminal output", True, ""),
+                                    ("textual", "timeline browser", True, ""), ("matplotlib", "arena chart", False, "report"),
+                                    ("playwright", "proof screenshots", False, "web")):
+        ok = importlib.util.find_spec(mod) is not None
+        if ok:
+            rows.append(("system", "ok", mod, why))
+        elif needed:
+            rows.append(("system", "bad", mod, f"missing. Hint: pip install {mod}"))
+        else:
+            rows.append(("system", "skip", mod, f"optional, for {why}: pip install 'keelyard[{extra}]'"))
+    exe = shutil.which("keelyard")
+    rows.append(("system", "ok" if exe else "warn", "keelyard on PATH",
+                 exe or "not found; hooks call `keelyard`. Hint: pipx install keelyard"))
+
+    root = config.find_root()
+    rows.append(("project", "ok", "root", str(root)))
+    cfg = None
+    try:
+        cfg = config.load(root)
+        has = (root / ".keelyard" / "config.toml").exists()
+        rows.append(("project", "ok" if has else "warn", "config", ".keelyard/config.toml" if has else "none yet. Hint: run `keelyard init`"))
+    except config.ProjectError as e:
+        rows.append(("project", "bad", "config", str(e)))
+    if cfg is not None and (root / ".keelyard").is_dir():
+        from .snapshot import Shadow
+
+        sh = Shadow(cfg)
+        if (sh.gitdir / "HEAD").exists():
+            try:
+                sh._git("rev-parse", "--verify", "-q", "refs/heads/timeline")
+                rows.append(("project", "ok", "timeline", f"{len(sh.steps())} steps"))
+            except Exception as e:  # noqa: BLE001
+                rows.append(("project", "bad", "timeline", f"{e}. Hint: move .keelyard/shadow.git aside and run `keelyard rewind snap`"))
+        else:
+            rows.append(("project", "skip", "timeline", "no snapshots yet"))
+        log = cfg.state / "hook.log"
+        if log.exists() and log.stat().st_size:
+            last = log.read_text(errors="replace").strip().splitlines()[0][:100]
+            rows.append(("project", "warn", "hook errors", f"see .keelyard/hook.log ({last})"))
+        if cfg.raw.get("models", {}).get("strong", {}).get("model") == "set-me":
+            rows.append(("project", "skip", "models.strong", "not set (only swarm/route use it)"))
+    found = detect()
+    for x in AGENTS:
+        if installed(x, root):
+            rows.append(("agents", "ok", x, "wired" + ("" if x in found else " (agent itself not found on PATH)")))
+        elif x in found:
+            rows.append(("agents", "warn", x, f"installed but not wired. Hint: keelyard install {x}"))
+        else:
+            rows.append(("agents", "skip", x, "not installed"))
+    return rows
+
+
+def do_doctor(a):
+    from . import ui
+
+    rows = _checks()
+    bad = sum(r[1] == "bad" for r in rows)
+    warn = sum(r[1] == "warn" for r in rows)
+    data = {"ok": not bad, "problems": bad, "warnings": warn,
+            "checks": [dict(zip(("section", "state", "check", "detail"), r, strict=True)) for r in rows]}
+    if _human(a):
+        ui.heading("keelyard doctor", f"v{__version__}")
+        section = None
+        for sec, state, label, detail in rows:
+            if sec != section:
+                ui.out.print(f"\n  [muted]{sec}[/]")
+                section = sec
+            ui.line(state, label, detail)
+        ui.out.print()
+        w = f"{warn} warning{'s' * (warn != 1)}"
+        if bad:
+            ui.out.print(f"  [bad]{bad} problem{'s' * (bad > 1)}[/] [muted]· {w}[/]")
+        else:
+            ui.out.print("  [ok]all good[/]" + (f" [muted]· {w}[/]" if warn else ""))
+    return (CHECK_FAILED if bad else 0), data
+
+
+def _ago(ts: float) -> str:
+    s = max(0, int(dt.datetime.now().timestamp() - ts))
+    for unit, n in (("d", 86400), ("h", 3600), ("m", 60)):
+        if s >= n:
+            return f"{s // n}{unit} ago"
+    return f"{s}s ago"
+
+
+def do_status(a):
+    from . import ui
+    from .adapters.install import AGENTS, installed
+    from .proof import Proof
+    from .snapshot import Shadow
+
+    cfg = _cfg()
+    root = cfg.root
+    if not (root / ".keelyard").is_dir():
+        raise Fail(f"keelyard is not set up in {root}. Hint: run `keelyard init`.")
+    steps = Shadow(cfg).steps()
+    sid = session.current(cfg)
+    pf = Proof(cfg, sid)
+    b = pf.load()
+    gaps = pf.missing()
+    data = {"version": __version__, "root": str(root), "agents": {x: installed(x, root) for x in AGENTS}, "steps": len(steps),
+            "last_step": steps[-1].__dict__ if steps else None, "session": sid, "task": b.task,
+            "requirements": b.requirements, "proven": not gaps, "missing": gaps}
+    if _human(a):
+        ui.heading("keelyard status", str(root))
+        ui.out.print("\n  [muted]agents[/]    " + "   ".join(
+            f"[ok]{ui.OK}[/] {x}" if v else f"[muted]{ui.DOT} {x}[/]" for x, v in data["agents"].items()))
+        if steps:
+            last = steps[-1]
+            n = len(last.files)
+            ui.out.print(f"  [muted]timeline[/]  {len(steps)} steps · last [key]#{last.step}[/] {last.tool}, {_ago(last.ts)}, "
+                         f"{n} file{'s' * (n != 1)}")
+        else:
+            ui.out.print("  [muted]timeline[/]  no snapshots yet")
+        ui.out.print("  [muted]proof[/]     " + ("[ok]proven[/]" if not gaps else f"[warn]{len(gaps)} open[/]")
+                     + (f" [muted]· session {sid}[/]" if sid != "default" else ""))
+        if b.task:
+            ui.out.print("  [muted]task[/]      ", end="")
+            ui.plain(textwrap.shorten(b.task, 72))
+        if b.requirements or gaps:
+            ui.out.print()
+        for r in b.requirements:
+            ui.line("ok" if r["done"] else "skip", f"{r['id']}. {textwrap.shorten(r['text'], 60)}", width=0)
+        for g in gaps:
+            if not g.startswith("Requirement #"):
+                ui.line("warn", textwrap.shorten(g, 80), width=0)
+    return 0, data
+
+
+def do_rewind(a):
+    from . import ui
+    from .snapshot import Shadow
+
+    sh = Shadow(_cfg())
+    h = _human(a)
+    if a.action == "list":
+        if a.interactive and h:
+            from .tui import run
+
+            msg = run(sh)
+            if msg:
+                ui.out.print(msg)
+            return 0, {}
+        steps = sh.steps()
+        shown = steps[-a.n:]
+        data = {"total": len(steps), "steps": [s.__dict__ for s in shown]}
+        if not h:
+            return 0, data
+        if not steps:
+            ui.out.print("[muted]no snapshots yet. They appear after your agent edits files, or run `keelyard rewind snap`.[/]")
+            return 0, data
+        if len(steps) > len(shown):
+            ui.out.print(f"[muted]{len(steps) - len(shown)} earlier steps hidden; use -n {len(steps)}[/]")
+        day = None
+        quiet = ("baseline", "pre-rewind", "rewind", "stop", "manual")
+        for s in shown:
+            t = dt.datetime.fromtimestamp(s.ts)
+            if t.date() != day:
+                day = t.date()
+                ui.out.print(f"[muted]{day:%a %d %b}[/]")
+            files = ", ".join(s.files[:3]) + (f"  +{len(s.files) - 3}" if len(s.files) > 3 else "")
+            tool = f"[muted]{s.tool:<10}[/]" if s.tool in quiet else f"{s.tool:<10}"
+            ui.out.print(f"  [key]#{s.step:<4}[/][muted]{t:%H:%M:%S}[/]  {tool}  ", end="")
+            ui.plain(files)
+        ui.out.print("[muted]show a step: keelyard rewind show <n> · go back: keelyard rewind to <n>[/]")
+        return 0, data
+    if a.action == "show":
+        text = sh.diff(a.step)
+        if h:
+            if sys.stdout.isatty():
+                from rich.syntax import Syntax
+
+                ui.out.print(Syntax(text, "diff", theme="ansi_dark", background_color="default"))
+            else:
+                sys.stdout.write(text)
+        return 0, {"step": a.step, "files": sh.get(a.step).files, "diff": text}
+    if a.action == "to":
+        res = sh.rewind(a.step)
+        if h:
+            extra = f"{len(res['removed'])} new file{'s' * (len(res['removed']) != 1)} removed" if res["removed"] else ""
+            ui.line("ok", f"restored step #{res['restored']}", extra, width=0)
+            ui.out.print(f"  [muted]changed your mind? keelyard rewind to {res['safety_step']}[/]")
+        return 0, res
+    if a.action == "fork":
+        dest = sh.fork(a.step, a.dest)
+        if h:
+            ui.line("ok", f"step #{a.step} copied to", str(dest), width=0)
+        return 0, {"step": a.step, "dest": str(dest)}
+    s = sh.snapshot("manual")
+    if h:
+        ui.out.print(f"[ok]{ui.OK}[/] snapshot #{s.step}, {len(s.files)} changed" if s else "[muted]no changes since the last snapshot[/]")
+    return 0, {"step": s.__dict__ if s else None}
+
+
+def do_proof(a):
+    from . import ui
+    from .proof import Proof
+    from .report import render
+
+    cfg = _cfg()
+    pf = Proof(cfg, session.current(cfg))
+    h = _human(a)
+    if a.action == "status":
+        gaps = pf.missing()
+        if h:
+            if gaps:
+                ui.out.print("[warn]not proven yet[/]")
+                for g in gaps:
+                    ui.line("skip", g, width=0)
+            else:
+                ui.out.print(f"[ok]{ui.OK} proven[/]  [muted]every requirement has evidence; tests pass after the last edit[/]")
+        return (0 if not gaps else CHECK_FAILED), {"proven": not gaps, "missing": gaps, "bundle": pf.load().__dict__}
+    if a.action == "add":
+        reqs = pf.add_requirements(a.items)
+        if h:
+            for r in reqs:
+                ui.line("ok" if r["done"] else "skip", f"{r['id']}. {r['text']}", width=0)
+        return 0, {"requirements": reqs}
+    if a.action == "check":
+        r = pf.check(a.id, a.evidence)
+        if h:
+            ui.line("ok", f"{r['id']}. {r['text']}", r["evidence"], width=0)
+        return 0, r
+    if a.action == "test":
+        r = pf.run_tests(a.phase, a.test_cmd)
+        if h:
+            ui.plain(r["tail"][-1500:].rstrip())
+            ui.line("ok" if r["exit"] == 0 else "bad", f"{a.phase}: {r['cmd']}", f"exit {r['exit']} in {r['seconds']}s", width=0)
+        return (0 if r["exit"] == 0 else CHECK_FAILED), {"passed": r["exit"] == 0, "run": r}
+    if a.action == "shot":
+        r = pf.screenshot(a.url)
+        if h:
+            ui.line("ok" if r.get("ok", True) else "bad", "screenshot", str(r.get("path", r)), width=0)
+        return (0 if r.get("ok", True) else CHECK_FAILED), r
+    path = render(pf)
+    if h:
+        ui.line("ok", "report", str(path), width=0)
+        if a.open:
+            import webbrowser
+
+            webbrowser.open(path.as_uri())
+    return 0, {"report": str(path)}
+
+
+def do_run(a):
+    from .filters import run_filtered
+
+    cmd = a.command[1:] if a.command[:1] == ["--"] else a.command
+    if cmd and cmd[0] == "--json":  # `keelyard run --json pytest` (REMAINDER swallows our own flag)
+        a.json, cmd = True, cmd[1:]
+    if not cmd:
+        raise Fail("nothing to run. Hint: keelyard run pytest -q", code=2)
+    cfg = _cfg()
+    code, out = run_filtered(shlex.join(cmd), Path.cwd(), cfg.state / "raw")
+    if _human(a):
+        print(out)
+    return code, {"exit": code, "output": out}
+
+
+def do_filter(a):
+    from .filters import filter_output
+
+    out = filter_output(a.for_cmd, sys.stdin.read())
+    if _human(a):
+        print(out)
+    return 0, {"output": out}
+
+
+def do_recall(a):
+    p = _cfg().state / "raw" / a.id
+    if not a.id.isalnum() or not p.exists():
+        raise Fail(f"no saved output {a.id!r}. Hint: use the id printed at the end of `keelyard run` output.")
+    text = p.read_text(errors="replace")
+    if _human(a):
+        sys.stdout.write(text)
+    return 0, {"id": a.id, "output": text}
+
+
+def do_code(a):
+    from . import codemap
+    from .saver import normalize_path
+
+    if a.action == "outline":
+        path = Path(normalize_path(str(a.path)))
+        if not path.is_file():
+            raise Fail(f"{a.path}: no such file")
+        text, data = codemap.outline(path), {"path": str(a.path)}
+        data["outline"] = text
+    elif a.action == "map":
+        text = codemap.project_map(_cfg().root)
+        data = {"map": text}
+    else:
+        text = codemap.find_symbol(_cfg().root, a.name)
+        data = {"name": a.name, "matches": [ln for ln in text.splitlines() if ":" in ln]}
+    if _human(a):
+        print(text)
+    return 0, data
+
+
+def do_memory(a):
+    from . import ui
+    from .memory import Memory, format_hits
+
+    mem = Memory()
+    h = _human(a)
+    if a.action == "index":
+        if h:
+            with ui.err.status("reading sessions from Claude Code, Codex and OpenCode"):
+                res = mem.ingest()
+            for k, v in res.items():
+                ui.line("ok" if v else "skip", k, f"{v} new chunks")
+        else:
+            res = mem.ingest()
+        return 0, {"new_chunks": res}
+    if a.action == "stats":
+        st = mem.stats()
+        if h:
+            if not st:
+                ui.out.print("[muted]nothing indexed yet. Run `keelyard memory index`.[/]")
+            for k, v in st.items():
+                ui.line("ok", k, f"{v['sessions']} sessions, {v['chunks']} chunks")
+        return 0, {"agents": st}
+    hits = mem.search(a.query, a.project, a.budget)
+    if h:
+        print(format_hits(hits))
+    return 0, {"query": a.query, "hits": hits}
+
+
+def do_usage(a):
+    from .usage import collect, table
+
+    rows = collect(_cfg().raw.get("prices", {}), by=a.by)
+    if _human(a):
+        print(table(rows))
+    return 0, {"by": a.by, "rows": [{"key": k, "input": r.input, "output": r.output, "cache_read": r.cache_read,
+                                     "cache_write": r.cache_write, "cost_usd": round(r.cost, 4) if r.priced else None}
+                                    for k, r in rows.items()]}
+
+
+def do_swarm(a):
+    from .swarm import Swarm, Task, format_results
+
+    try:
+        raw = json.loads(a.tasks.read_text())
+        tasks = [Task(**t) for t in raw]
+    except FileNotFoundError:
+        raise Fail(f"{a.tasks}: no such file") from None
+    except (ValueError, TypeError) as e:
+        raise Fail(f"{a.tasks} must be a JSON list of {{kind, prompt, files}} objects ({e}).") from None
+    results = asyncio.run(Swarm(_cfg(), a.model).run(tasks))
+    if _human(a):
+        print(format_results(results))
+    return 0, {"verified": sum(r.verified for r in results), "total": len(results), "results": [r.__dict__ for r in results]}
+
+
+def do_arena(a):
+    from . import arena, ui
+
+    if a.action == "run":
+        if not a.spec.is_file():
+            raise Fail(f"{a.spec}: no such file. Hint: see examples/arena/discount/task.toml")
+        res = arena.run_task(a.spec, a.out, a.only)
+        report = a.out / "report.html"
+        data = {"runs": len(res), "report": str(report)}
+    else:
+        if not (a.out / "results.json").exists():
+            raise Fail(f"no results.json in {a.out}. Hint: run `keelyard arena run <spec>` first.")
+        report = arena.render(a.out)
+        data = {"report": str(report)}
+    if _human(a):
+        ui.line("ok", "report", str(report), width=0)
+    return 0, data
+
+
+def do_bench(a):
+    from .bench import run_all
+
+    res = run_all(_cfg())
+    if _human(a):
+        print(res["text"])
+    return 0, {k: v for k, v in res.items() if k != "text"}
+
+
+def do_selftest(a):
+    from . import selftest, ui
+
+    h = _human(a)
+    if h:
+        with ui.err.status("a scripted agent is working through a task"):
+            rep = selftest.run(keep=a.keep)
+        ui.heading("keelyard selftest", "MCP over stdio + Claude Code hook payloads, in a temp project")
+        ui.out.print()
+        for c in rep.checks:
+            ui.line("ok" if c.ok else "bad", c.name, c.detail, width=48)
+        n = sum(c.ok for c in rep.checks)
+        ui.out.print(f"\n  {'[ok]' if rep.ok else '[bad]'}{n}/{len(rep.checks)} passed[/]" + (f"  [muted]kept in {rep.workdir}[/]" if a.keep else ""))
+    else:
+        rep = selftest.run(keep=a.keep)
+    return (0 if rep.ok else CHECK_FAILED), {"ok": rep.ok, "checks": [c.__dict__ for c in rep.checks],
+                                              "workdir": rep.workdir if a.keep else None}
+
+
+def do_install(a):
+    from . import ui
+    from .adapters import install as inst
+
+    root = config.find_root()
+    if a.cmd == "install":
         config.init(root)
-        for line in install(a.agent, root):
-            print("✓", line)
-    elif a.cmd == "hook":
+    done = getattr(inst, a.cmd)(a.agent, root)
+    if _human(a):
+        for n, item in enumerate(done or ["nothing to remove"]):
+            first, *rest = item.splitlines()
+            ui.line("ok", a.agent if n == 0 else "", first)
+            for r in rest:
+                ui.out.print(f"      [muted]{r}[/]")
+    return 0, {"agent": a.agent, "action": a.cmd, "changed": done}
+
+
+do_uninstall = do_install
+
+
+def _print_json(data) -> None:
+    sys.stdout.write(json.dumps(data, indent=1, default=str, ensure_ascii=False) + "\n")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = _parser()
+    argv = sys.argv[1:] if argv is None else argv
+    want_json = "--json" in argv[:argv.index("--")] if "--" in argv else "--json" in argv
+    try:
+        a = ap.parse_args(argv)
+    except SystemExit as e:
+        if want_json and e.code not in (0, None):
+            _print_json({"ok": False, "exit": 2, "error": "usage error; run with --help"})
+        return int(e.code or 0)
+    if not a.cmd:
+        ap.print_help()
+        return 0
+    if a.cmd == "hook":
         from .hooks import main as hook_main
 
         return hook_main(a.agent, a.event)
-    elif a.cmd == "mcp":
+    if a.cmd == "mcp":
         from .mcp_server import main as mcp_main
 
         mcp_main()
-    elif a.cmd == "proof":
-        from .proof import Proof
-        from .report import render
+        return 0
 
-        cfg = _cfg()
-        pf = Proof(cfg, session.current(cfg))
-        if a.sub == "status":
-            gaps = pf.missing()
-            print("PROVEN" if not gaps else "MISSING:\n- " + "\n- ".join(gaps))
-            return 0 if not gaps else 1
-        if a.sub == "req":
-            print(json.dumps(pf.add_requirements(a.items), indent=1))
-        elif a.sub == "check":
-            print(json.dumps(pf.check(a.id, a.evidence)))
-        elif a.sub == "test":
-            r = pf.run_tests(a.phase, a.test_cmd)
-            print(f"exit={r['exit']} {r['seconds']}s\n{r['tail'][-1500:]}")
-            return 0 if r["exit"] == 0 else 1
-        elif a.sub == "shot":
-            print(json.dumps(pf.screenshot(a.url)))
-        elif a.sub == "report":
-            print(render(pf))
-    elif a.cmd in ("timeline", "snapshot", "diff", "rewind", "fork"):
-        from .snapshot import Shadow
+    from . import ui
+    from .adapters.install import InstallError
+    from .snapshot import SnapshotError
 
-        sh = Shadow(_cfg())
-        if a.cmd == "timeline":
-            if a.i:
-                from .tui import run
-
-                msg = run(sh)
-                if msg:
-                    print(msg)
-            else:
-                for s in sh.steps():
-                    t = dt.datetime.fromtimestamp(s.ts).strftime("%H:%M:%S")
-                    print(f"#{s.step:<4} {t} {s.tool:<12} {', '.join(s.files[:6])}")
-        elif a.cmd == "snapshot":
-            s = sh.snapshot("manual")
-            print(f"#{s.step}" if s else "no changes")
-        elif a.cmd == "diff":
-            print(sh.diff(a.step))
-        elif a.cmd == "rewind":
-            print(json.dumps(sh.rewind(a.step)))
-        elif a.cmd == "fork":
-            print(sh.fork(a.step, a.dest))
-    elif a.cmd == "swarm":
-        from .swarm import Swarm, Task, format_results
-
-        tasks = [Task(**t) for t in json.loads(a.tasks.read_text())]
-        print(format_results(asyncio.run(Swarm(_cfg(), a.model).run(tasks))))
-    elif a.cmd == "compress":
-        from .filters import filter_output
-
-        print(filter_output(a.for_cmd, sys.stdin.read()))
-    elif a.cmd == "x":
-        import shlex
-
-        from .filters import run_filtered
-
-        cfg = _cfg()
-        cmd = a.command[1:] if a.command[:1] == ["--"] else a.command
-        code, out = run_filtered(shlex.join(cmd), Path.cwd(), cfg.state / "raw")
-        print(out)
+    try:
+        code, data = globals()[f"do_{a.cmd}"](a)
+    except KeyboardInterrupt:
+        ui.err.print("[muted]interrupted[/]")
+        return 130
+    except (Fail, SnapshotError, InstallError, config.ProjectError, ValueError, KeyError, PermissionError,
+            FileNotFoundError, NotADirectoryError, TimeoutError) as e:
+        msg = str(e.args[0] if isinstance(e, KeyError) and e.args else e)
+        code = e.code if isinstance(e, Fail) else 1
+        if getattr(a, "json", False):
+            text, _, hint = msg.partition("Hint:")
+            _print_json({"ok": False, "exit": code, "error": text.strip(), "hint": hint.strip() or None})
+        else:
+            ui.error(msg)
         return code
-    elif a.cmd == "recall":
-        p = _cfg().state / "raw" / a.id
-        if not a.id.isalnum() or not p.exists():
-            print("unknown id", file=sys.stderr)
-            return 1
-        print(p.read_text(), end="")
-    elif a.cmd in ("outline", "map", "sym"):
-        from . import codemap
-
-        if a.cmd == "outline":
-            print(codemap.outline(a.path))
-        elif a.cmd == "map":
-            print(codemap.project_map(_cfg().root))
-        else:
-            print(codemap.find_symbol(_cfg().root, a.name))
-    elif a.cmd == "usage":
-        from .usage import collect, table
-
-        print(table(collect(_cfg().raw.get("prices", {}), by=a.by)))
-    elif a.cmd == "arena":
-        from . import arena
-
-        if a.sub == "run":
-            res = arena.run_task(a.spec, a.out, a.only)
-            print(f"{len(res)} runs -> {a.out / 'report.html'}")
-        else:
-            print(arena.render(a.out))
-    elif a.cmd == "mem":
-        from .memory import Memory, format_hits
-
-        mem = Memory()
-        if a.sub == "ingest":
-            print(json.dumps(mem.ingest()))
-        elif a.sub == "stats":
-            print(json.dumps(mem.stats(), indent=1))
-        else:
-            print(format_hits(mem.search(a.query, a.project, a.budget)))
-    elif a.cmd == "bench":
-        from .bench import run_all
-
-        res = run_all(_cfg())
-        print(json.dumps(res, indent=2) if a.json else res["text"])
-    return 0
+    if getattr(a, "json", False):
+        _print_json({**(data if isinstance(data, dict) else {"data": data}), "ok": code == 0, "exit": code})
+    return code
 
 
 if __name__ == "__main__":
