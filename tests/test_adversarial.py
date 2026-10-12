@@ -212,7 +212,10 @@ def test_hook_command_is_quoted_when_install_path_has_spaces(project, monkeypatc
     monkeypatch.setattr(inst.shutil, "which", lambda _: str(tmp_path / "my tools" / "keelyard"))
     inst.install("claude", project)
     cmd = json.loads((project / ".claude/settings.json").read_text())["hooks"]["Stop"][0]["hooks"][0]["command"]
-    assert cmd.startswith("'") and "my tools/keelyard' hook claude Stop" in cmd
+    if os.name == "nt":
+        assert cmd.startswith('"') and 'keelyard" hook claude Stop' in cmd
+    else:
+        assert cmd.startswith("'") and "my tools/keelyard' hook claude Stop" in cmd
 
 
 def test_install_validates_all_files_before_writing(project):
@@ -253,6 +256,7 @@ def test_corrupt_proof_bundle_is_set_aside(cfg):
 
 def test_init_refuses_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     with pytest.raises(config.ProjectError):
         config.init(tmp_path.resolve())
 
@@ -308,7 +312,12 @@ def test_mcp_config_uses_the_raw_executable_path(project, monkeypatch, tmp_path)
     assert json.loads((project / ".mcp.json").read_text())["mcpServers"]["keelyard"]["command"] == exe
     assert json.loads((project / "opencode.json").read_text())["mcp"]["keelyard"]["command"][0] == exe
     snippet = "\n".join(inst.install("codex", project))
-    assert f'command = "{exe}"' in snippet
+    toml_part = "\n".join(snippet[snippet.index("[mcp_servers.keelyard]"):].splitlines()[:3])
+    try:
+        import tomllib
+    except ImportError:  # pragma: no cover
+        return
+    assert tomllib.loads(toml_part)["mcp_servers"]["keelyard"]["command"] == exe
 
 
 def test_mcp_tool_error_reaches_agent_with_hint(tmp_path, monkeypatch):
@@ -342,3 +351,23 @@ def test_memory_project_filter_follows_symlinks(tmp_path):
     m.db.commit()
     assert len(m.search("discount", project=str(link))) == 2
     assert len(m.search("discount", project=str(real))) == 2
+
+
+def test_read_cache_diffs_crlf_files(cfg, project):
+    """Bug (Windows): CRLF files never got a diff-only re-read; every line looked changed."""
+    from keelyard.saver import ReadCache
+
+    big = "".join(f"line {i}\r\n" for i in range(200))
+    (project / "w.txt").write_bytes(big.encode())
+    rc = ReadCache(cfg, "s")
+    rc.read("w.txt")
+    (project / "w.txt").write_bytes(big.replace("line 100\r\n", "line one hundred\r\n").encode())
+    assert "diff only" in rc.read("w.txt")
+
+
+def test_cli_output_survives_a_cp1252_pipe(project):
+    """Bug (Windows): piped output is cp1252, and printing an arrow crashed `keelyard run`."""
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    p = subprocess.run([sys.executable, "-m", "keelyard.cli", "run", "--", sys.executable, "-c", "import sys; sys.stdout.buffer.write('a \\u2192 b'.encode())"],  # noqa: E501
+                       cwd=project, capture_output=True, env=env)
+    assert p.returncode == 0, p.stderr.decode(errors="replace")

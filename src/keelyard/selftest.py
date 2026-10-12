@@ -85,7 +85,7 @@ def _setup(tmp: Path, port: int) -> tuple[Path, dict]:
 
 def _hook(event: str, payload: dict, env: dict, proj: Path) -> dict | None:
     p = subprocess.run([sys.executable, "-m", "keelyard.cli", "hook", "claude", event], input=json.dumps(payload),
-                       capture_output=True, text=True, env=env, cwd=proj, timeout=120)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, cwd=proj, timeout=120)
     if p.returncode != 0:
         raise RuntimeError(f"hook {event} exited {p.returncode}: {p.stderr[-300:]}")
     return json.loads(p.stdout) if p.stdout.strip() else None

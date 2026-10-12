@@ -127,6 +127,13 @@ def read_opencode(storage: Path) -> Iterator[Turn]:
                 yield Turn("opencode", sid, sessions.get(sid, ""), ts, m.get("role", ""), text)
 
 
+def _norm_project(project: str) -> str:
+    """Resolved, forward-slash form, so /var vs /private/var and C:\\x vs C:/x compare equal."""
+    if project and (os.path.isabs(project) or project.startswith("/")):
+        return os.path.realpath(project).replace("\\", "/")
+    return project
+
+
 def default_sources() -> list[tuple[str, Path]]:
     home = Path.home()
     xdg = Path(os.environ.get("XDG_DATA_HOME") or home / ".local" / "share")
@@ -156,7 +163,7 @@ class Memory:
 
     def _add(self, t: Turn) -> int:
         text = redact(t.text)
-        project = os.path.realpath(t.project) if t.project and os.path.isabs(t.project) else t.project
+        project = _norm_project(t.project)
         n = 0
         for i in range(0, len(text), CHUNK):
             piece = text[i:i + CHUNK]
@@ -208,7 +215,7 @@ class Memory:
             # exact folder or a subfolder ('/shop' must not match '/shop2'); also the resolved
             # path, since macOS logs /private/var for /var
             clauses = []
-            for cand in dict.fromkeys([project.rstrip("/\\"), os.path.realpath(project).rstrip("/\\")]):
+            for cand in dict.fromkeys([project.replace("\\", "/").rstrip("/"), _norm_project(project).rstrip("/")]):
                 esc = cand.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 clauses.append("c.project = ? OR c.project LIKE ? ESCAPE '\\'")
                 args += [cand, esc + "/%"]

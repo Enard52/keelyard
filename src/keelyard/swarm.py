@@ -142,7 +142,7 @@ def verify_patch(root: Path, answer: str) -> tuple[bool, str, list[str]]:
     patch = (m.group(1) if m else answer).strip() + "\n"
     if "@@" not in patch:
         return False, patch, ["no hunk found in worker output"]
-    p = subprocess.run(["git", "apply", "--check", "--recount", "-"], cwd=root, input=patch, text=True, capture_output=True)
+    p = subprocess.run(["git", "apply", "--check", "--recount", "-"], cwd=root, input=patch, text=True, encoding="utf-8", errors="replace", capture_output=True)  # noqa: E501
     if p.returncode != 0:
         return False, patch, [f"patch does not apply: {p.stderr.strip()[:300]}"]
     return True, patch, ["git apply --check passed (not applied)"]
@@ -152,10 +152,10 @@ def verify_patch(root: Path, answer: str) -> tuple[bool, str, list[str]]:
 def _grep(root: Path, pattern: str, limit: int = 200) -> str:
     rg = ["rg", "-n", "--no-heading", "-S", "-m", "20", pattern, "."]
     try:
-        p = subprocess.run(rg, cwd=root, capture_output=True, text=True, timeout=60)
+        p = subprocess.run(rg, cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
         lines = p.stdout.splitlines()
     except FileNotFoundError:
-        p = subprocess.run(["git", "grep", "-n", "-I", "-E", pattern], cwd=root, capture_output=True, text=True)
+        p = subprocess.run(["git", "grep", "-n", "-I", "-E", pattern], cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace")  # noqa: E501
         lines = p.stdout.splitlines()
     more = f"\n... {len(lines) - limit} more" if len(lines) > limit else ""
     return "\n".join(lines[:limit]) + more

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-import shlex
+import shlex  # noqa: F401
 import subprocess
 import time
 from collections import OrderedDict, defaultdict
@@ -265,10 +265,13 @@ def filter_output(cmd: str, out: str) -> str:
     return small if len(small) < len(out) else out
 
 
+from .proc import split_cmd  # noqa: E402
+
+
 def run_filtered(cmd: str, cwd: Path, raw_dir: Path, timeout: int = 900) -> tuple[int, str]:
     t0 = time.time()
     try:
-        p = subprocess.run(shlex.split(cmd), cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(split_cmd(cmd), cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
         code, raw = p.returncode, p.stdout + p.stderr
     except subprocess.TimeoutExpired:
         return 124, f"timeout after {timeout}s"

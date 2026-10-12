@@ -11,7 +11,7 @@ import hashlib
 import json
 import os
 import re
-import shlex
+import shlex  # noqa: F401
 import subprocess
 import time
 from pathlib import Path
@@ -65,10 +65,13 @@ def compress_output(text: str, max_chars: int = 6000) -> str:
     return f"{head}\n... [{omitted} lines omitted by keelyard; error/warning lines kept] ...\n{mid}\n{tail}".replace("\n\n\n", "\n")
 
 
+from .proc import split_cmd  # noqa: E402
+
+
 def run_compact(cfg: Config, cmd: str, timeout: int = 600) -> dict:
     t0 = time.time()
     try:
-        p = subprocess.run(shlex.split(cmd), cwd=cfg.root, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(split_cmd(cmd), cwd=cfg.root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
         code, raw = p.returncode, p.stdout + p.stderr
     except subprocess.TimeoutExpired as e:
         code, raw = 124, f"timeout after {timeout}s\n{e.stdout or ''}"
@@ -143,7 +146,7 @@ class ReadCache:
         sha = hashlib.sha256(data).hexdigest()[:16]
         prev = self.seen(p)
         whole = start <= 1 and end is None
-        text = data.decode(errors="replace")
+        text = data.decode(errors="replace").replace("\r\n", "\n")
         if prev and whole and not force:
             if prev["sha"] == sha:
                 self.remember(p, data)
@@ -153,7 +156,7 @@ class ReadCache:
             old = self.blobs / prev["sha"]
             if old.exists():
                 diff = "".join(difflib.unified_diff(
-                    old.read_text(errors="replace").splitlines(True), text.splitlines(True),
+                    old.read_bytes().decode(errors="replace").replace("\r\n", "\n").splitlines(True), text.splitlines(True),
                     f"{file} (your previous read)", f"{file} (now)", n=2))
                 if len(diff) < len(text) * 0.6:
                     self.remember(p, data)

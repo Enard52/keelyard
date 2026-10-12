@@ -1,4 +1,5 @@
 import json
+import os
 
 from keelyard.memory import Memory, format_hits
 
@@ -61,4 +62,5 @@ def test_ingest_search_redact(tmp_path):
     everything = mem.db.execute("SELECT group_concat(text) FROM chunks").fetchone()[0]
     assert "sk_live_abcdefghijklmnop" not in everything
     assert sum(len(h["snippet"]) for h in mem.search("the", budget_chars=100)) <= 100
-    assert (tmp_path / "m.db").stat().st_mode & 0o077 == 0
+    if os.name != "nt":  # Windows has no POSIX modes
+        assert (tmp_path / "m.db").stat().st_mode & 0o077 == 0

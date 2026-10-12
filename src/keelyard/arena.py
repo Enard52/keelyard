@@ -83,7 +83,7 @@ def parse_usage(stdout: str) -> dict:
 
 
 def _changed(repo: Path) -> int:
-    p = subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True)
+    p = subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return len([ln for ln in p.stdout.splitlines() if ln.strip()])
 
 
@@ -114,13 +114,13 @@ def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None) -> l
                 cmd = [c.format(**fmt) for c in agent["cmd"]]
                 t0 = time.time()
                 try:
-                    p = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, timeout=timeout)
+                    p = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
                     code, out, note = p.returncode, p.stdout, ""
                 except subprocess.TimeoutExpired:
                     code, out, note = 124, "", f"timeout {timeout}s"
                 secs = time.time() - t0
                 try:
-                    chk = subprocess.run(task["check"], shell=True, cwd=repo, capture_output=True, text=True, timeout=600)
+                    chk = subprocess.run(task["check"], shell=True, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
                     check_ok = chk.returncode == 0
                 except subprocess.TimeoutExpired:
                     check_ok, note = False, (note + "; " if note else "") + "check timed out"

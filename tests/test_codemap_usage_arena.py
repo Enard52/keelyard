@@ -1,6 +1,7 @@
 import json
 import sys
 import textwrap
+from pathlib import Path
 
 from keelyard import arena, codemap, usage
 
@@ -84,15 +85,15 @@ def test_arena_end_to_end_with_fake_agents(tmp_path):
 name = "discount"
 repo = "repo"
 prompt = "apply a 10% discount"
-check = "{sys.executable} -m pytest -q"
+check = "{Path(sys.executable).as_posix()} -m pytest -q"
 runs = 2
 [[agent]]
 name = "good"
 model = "m1"
-cmd = ["{sys.executable}", "{{here}}/good_agent.py", "{{prompt}}"]
+cmd = ["{Path(sys.executable).as_posix()}", "{{here}}/good_agent.py", "{{prompt}}"]
 [[agent]]
 name = "lazy"
-cmd = ["{sys.executable}", "{{here}}/lazy_agent.py"]
+cmd = ["{Path(sys.executable).as_posix()}", "{{here}}/lazy_agent.py"]
 [[agent]]
 name = "missing"
 cmd = ["definitely-not-installed-agent"]

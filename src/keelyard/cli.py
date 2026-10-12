@@ -749,6 +749,11 @@ def _print_json(data) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):  # Windows pipes default to cp1252, which cannot print → or …
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = _parser()
     argv = sys.argv[1:] if argv is None else argv
     want_json = "--json" in argv[:argv.index("--")] if "--" in argv else "--json" in argv

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import shlex
 import shutil
 import subprocess
@@ -12,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import Config
+from .proc import split_cmd
 from .redact import redact
 from .snapshot import Shadow
 
@@ -112,7 +112,7 @@ class Proof:
                              "Hint: pass --cmd \"npm test\" (MCP: command=...) or set [proof].test_cmd in .keelyard/config.toml")
         t0 = time.time()
         try:
-            p = subprocess.run(shlex.split(cmd, posix=os.name != 'nt'), cwd=self.cfg.root, capture_output=True, text=True, timeout=timeout)
+            p = subprocess.run(split_cmd(cmd), cwd=self.cfg.root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)  # noqa: E501
             code, out = p.returncode, (p.stdout + p.stderr)
         except subprocess.TimeoutExpired as e:
             code, out = 124, f"timeout after {timeout}s\n{e.stdout or ''}"
@@ -191,6 +191,6 @@ def _screenshot(url: str, out: Path) -> str | None:
         return f"screenshot failed: {e}"
     if shutil.which("npx"):
         p = subprocess.run(["npx", "--yes", "playwright", "screenshot", "--full-page", url, str(out)],
-                           capture_output=True, text=True, timeout=180)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
         return None if p.returncode == 0 and out.exists() else f"npx playwright failed: {p.stderr[-500:]}"
     return "playwright not available: pip install 'keelyard[web]' && playwright install chromium"
