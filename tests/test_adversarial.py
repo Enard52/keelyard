@@ -337,6 +337,8 @@ def test_memory_project_filter_follows_symlinks(tmp_path):
     link = tmp_path / "link"
     link.symlink_to(real)
     m = Memory(tmp_path / "m.db")
-    m._add(Turn("claude-code", "s1", str(real), "2026-01-01", "user", "round the discount down"))
+    m._add(Turn("claude-code", "s1", str(link), "2026-01-01", "user", "round the discount down"))
+    m._add(Turn("claude-code", "s2", str(real), "2026-01-01", "user", "discount rounding again"))
     m.db.commit()
-    assert m.search("discount", project=str(link))
+    assert len(m.search("discount", project=str(link))) == 2
+    assert len(m.search("discount", project=str(real))) == 2

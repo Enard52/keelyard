@@ -156,13 +156,14 @@ class Memory:
 
     def _add(self, t: Turn) -> int:
         text = redact(t.text)
+        project = os.path.realpath(t.project) if t.project and os.path.isabs(t.project) else t.project
         n = 0
         for i in range(0, len(text), CHUNK):
             piece = text[i:i + CHUNK]
             h = hashlib.sha256(f"{t.agent}|{t.session}|{t.role}|{piece}".encode()).hexdigest()
             cur = self.db.execute(
                 "INSERT OR IGNORE INTO chunks(hash,agent,session,project,ts,role,text) VALUES (?,?,?,?,?,?,?)",
-                (h, t.agent, t.session, t.project, t.ts, t.role, piece))
+                (h, t.agent, t.session, project, t.ts, t.role, piece))
             n += cur.rowcount
         return n
 
