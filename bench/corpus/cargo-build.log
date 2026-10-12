@@ -1,0 +1,25 @@
+ Downloading crates ...
+  Downloaded itoa v1.0.18
+  Downloaded zmij v1.0.23
+  Downloaded proc-macro2 v1.0.107
+  Downloaded unicode-ident v1.0.27
+  Downloaded serde_derive v1.0.229
+  Downloaded memchr v2.8.3
+  Downloaded serde v1.0.229
+  Downloaded serde_json v1.0.154
+  Downloaded serde_core v1.0.229
+  Downloaded quote v1.0.47
+  Downloaded syn v3.0.8
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.154
+   Compiling serde v1.0.229
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling syn v3.0.8
+   Compiling serde_derive v1.0.229
+   Compiling cx v0.1.0 (/tmp/demo/cx)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.28s

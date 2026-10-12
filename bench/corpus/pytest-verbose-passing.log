@@ -1,0 +1,55 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /workspace/oss/keelyard/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /workspace/oss/keelyard
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1
+collecting ... collected 21 items
+
+tests/test_install.py::test_install_claude_idempotent PASSED             [  4%]
+tests/test_install.py::test_install_codex_and_opencode PASSED            [  9%]
+tests/test_mcp_stdio.py::test_mcp_stdio_roundtrip PASSED                 [ 14%]
+tests/test_memory.py::test_ingest_search_redact PASSED                   [ 19%]
+tests/test_proof_hooks.py::test_gate_lifecycle PASSED                    [ 23%]
+tests/test_proof_hooks.py::test_gate_gives_up_after_max_blocks PASSED    [ 28%]
+tests/test_proof_hooks.py::test_failing_tests_keep_gate_closed PASSED    [ 33%]
+tests/test_proof_hooks.py::test_hook_cli_claude_format_end_to_end PASSED [ 38%]
+tests/test_redact.py::test_redacts_common_secrets PASSED                 [ 42%]
+tests/test_redact.py::test_leaves_normal_text PASSED                     [ 47%]
+tests/test_saver.py::test_compress_keeps_errors_and_collapses_noise PASSED [ 52%]
+tests/test_saver.py::test_compress_progress_bars PASSED                  [ 57%]
+tests/test_saver.py::test_read_cache_dedupes_and_diffs PASSED            [ 61%]
+tests/test_saver.py::test_read_cache_refuses_escape PASSED               [ 66%]
+tests/test_saver.py::test_claude_read_dedupe_hook PASSED                 [ 71%]
+tests/test_saver.py::test_route PASSED                                   [ 76%]
+tests/test_snapshot.py::test_snapshot_rewind_fork PASSED                 [ 80%]
+tests/test_swarm.py::test_swarm_200_workers_with_verification PASSED     [ 85%]
+tests/test_swarm.py::test_anthropic_provider_and_retry PASSED            [ 90%]
+tests/test_swarm.py::test_verify_patch PASSED                            [ 95%]
+tests/test_swarm.py::test_verify_citations_rejects_missing_file PASSED   [100%]
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_install.py::test_install_claude_idempotent
+PASSED tests/test_install.py::test_install_codex_and_opencode
+PASSED tests/test_mcp_stdio.py::test_mcp_stdio_roundtrip
+PASSED tests/test_memory.py::test_ingest_search_redact
+PASSED tests/test_proof_hooks.py::test_gate_lifecycle
+PASSED tests/test_proof_hooks.py::test_gate_gives_up_after_max_blocks
+PASSED tests/test_proof_hooks.py::test_failing_tests_keep_gate_closed
+PASSED tests/test_proof_hooks.py::test_hook_cli_claude_format_end_to_end
+PASSED tests/test_redact.py::test_redacts_common_secrets
+PASSED tests/test_redact.py::test_leaves_normal_text
+PASSED tests/test_saver.py::test_compress_keeps_errors_and_collapses_noise
+PASSED tests/test_saver.py::test_compress_progress_bars
+PASSED tests/test_saver.py::test_read_cache_dedupes_and_diffs
+PASSED tests/test_saver.py::test_read_cache_refuses_escape
+PASSED tests/test_saver.py::test_claude_read_dedupe_hook
+PASSED tests/test_saver.py::test_route
+PASSED tests/test_snapshot.py::test_snapshot_rewind_fork
+PASSED tests/test_swarm.py::test_swarm_200_workers_with_verification
+PASSED tests/test_swarm.py::test_anthropic_provider_and_retry
+PASSED tests/test_swarm.py::test_verify_patch
+PASSED tests/test_swarm.py::test_verify_citations_rejects_missing_file
+============================== 21 passed in 4.28s ==============================

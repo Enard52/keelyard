@@ -1,0 +1,131 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /workspace/oss/keelyard/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /tmp/demo/t
+plugins: anyio-4.15.1
+collecting ... collected 63 items
+
+test_x.py::test_ok[0] PASSED                                             [  1%]
+test_x.py::test_ok[1] PASSED                                             [  3%]
+test_x.py::test_ok[2] PASSED                                             [  4%]
+test_x.py::test_ok[3] PASSED                                             [  6%]
+test_x.py::test_ok[4] PASSED                                             [  7%]
+test_x.py::test_ok[5] PASSED                                             [  9%]
+test_x.py::test_ok[6] PASSED                                             [ 11%]
+test_x.py::test_ok[7] PASSED                                             [ 12%]
+test_x.py::test_ok[8] PASSED                                             [ 14%]
+test_x.py::test_ok[9] PASSED                                             [ 15%]
+test_x.py::test_ok[10] PASSED                                            [ 17%]
+test_x.py::test_ok[11] PASSED                                            [ 19%]
+test_x.py::test_ok[12] PASSED                                            [ 20%]
+test_x.py::test_ok[13] PASSED                                            [ 22%]
+test_x.py::test_ok[14] PASSED                                            [ 23%]
+test_x.py::test_ok[15] PASSED                                            [ 25%]
+test_x.py::test_ok[16] PASSED                                            [ 26%]
+test_x.py::test_ok[17] PASSED                                            [ 28%]
+test_x.py::test_ok[18] PASSED                                            [ 30%]
+test_x.py::test_ok[19] PASSED                                            [ 31%]
+test_x.py::test_ok[20] PASSED                                            [ 33%]
+test_x.py::test_ok[21] PASSED                                            [ 34%]
+test_x.py::test_ok[22] PASSED                                            [ 36%]
+test_x.py::test_ok[23] PASSED                                            [ 38%]
+test_x.py::test_ok[24] PASSED                                            [ 39%]
+test_x.py::test_ok[25] PASSED                                            [ 41%]
+test_x.py::test_ok[26] PASSED                                            [ 42%]
+test_x.py::test_ok[27] PASSED                                            [ 44%]
+test_x.py::test_ok[28] PASSED                                            [ 46%]
+test_x.py::test_ok[29] PASSED                                            [ 47%]
+test_x.py::test_ok[30] PASSED                                            [ 49%]
+test_x.py::test_ok[31] PASSED                                            [ 50%]
+test_x.py::test_ok[32] PASSED                                            [ 52%]
+test_x.py::test_ok[33] PASSED                                            [ 53%]
+test_x.py::test_ok[34] PASSED                                            [ 55%]
+test_x.py::test_ok[35] PASSED                                            [ 57%]
+test_x.py::test_ok[36] PASSED                                            [ 58%]
+test_x.py::test_ok[37] PASSED                                            [ 60%]
+test_x.py::test_ok[38] PASSED                                            [ 61%]
+test_x.py::test_ok[39] PASSED                                            [ 63%]
+test_x.py::test_ok[40] PASSED                                            [ 65%]
+test_x.py::test_ok[41] PASSED                                            [ 66%]
+test_x.py::test_ok[42] PASSED                                            [ 68%]
+test_x.py::test_ok[43] PASSED                                            [ 69%]
+test_x.py::test_ok[44] PASSED                                            [ 71%]
+test_x.py::test_ok[45] PASSED                                            [ 73%]
+test_x.py::test_ok[46] PASSED                                            [ 74%]
+test_x.py::test_ok[47] PASSED                                            [ 76%]
+test_x.py::test_ok[48] PASSED                                            [ 77%]
+test_x.py::test_ok[49] PASSED                                            [ 79%]
+test_x.py::test_ok[50] PASSED                                            [ 80%]
+test_x.py::test_ok[51] PASSED                                            [ 82%]
+test_x.py::test_ok[52] PASSED                                            [ 84%]
+test_x.py::test_ok[53] PASSED                                            [ 85%]
+test_x.py::test_ok[54] PASSED                                            [ 87%]
+test_x.py::test_ok[55] PASSED                                            [ 88%]
+test_x.py::test_ok[56] PASSED                                            [ 90%]
+test_x.py::test_ok[57] PASSED                                            [ 92%]
+test_x.py::test_ok[58] PASSED                                            [ 93%]
+test_x.py::test_ok[59] PASSED                                            [ 95%]
+test_x.py::test_bad[0] FAILED                                            [ 96%]
+test_x.py::test_bad[1] FAILED                                            [ 98%]
+test_x.py::test_bad[2] FAILED                                            [100%]
+
+=================================== FAILURES ===================================
+_________________________________ test_bad[0] __________________________________
+
+i = 0
+
+    @pytest.mark.parametrize("i", range(3))
+>   def test_bad(i): assert parse('{"item": [%d]}' % i) == [i]
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test_x.py:6: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = '{"item": [0]}'
+
+>   def parse(s): return json.loads(s)["items"]
+                         ^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'items'
+
+test_x.py:2: KeyError
+_________________________________ test_bad[1] __________________________________
+
+i = 1
+
+    @pytest.mark.parametrize("i", range(3))
+>   def test_bad(i): assert parse('{"item": [%d]}' % i) == [i]
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test_x.py:6: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = '{"item": [1]}'
+
+>   def parse(s): return json.loads(s)["items"]
+                         ^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'items'
+
+test_x.py:2: KeyError
+_________________________________ test_bad[2] __________________________________
+
+i = 2
+
+    @pytest.mark.parametrize("i", range(3))
+>   def test_bad(i): assert parse('{"item": [%d]}' % i) == [i]
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test_x.py:6: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = '{"item": [2]}'
+
+>   def parse(s): return json.loads(s)["items"]
+                         ^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'items'
+
+test_x.py:2: KeyError
+=========================== short test summary info ============================
+FAILED test_x.py::test_bad[0] - KeyError: 'items'
+FAILED test_x.py::test_bad[1] - KeyError: 'items'
+FAILED test_x.py::test_bad[2] - KeyError: 'items'
+========================= 3 failed, 60 passed in 0.06s =========================

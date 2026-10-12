@@ -1,0 +1,181 @@
+"""Proof-of-work: the evidence an agent must collect before it may say "done"."""
+
+from __future__ import annotations
+
+import json
+import shlex
+import shutil
+import subprocess
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .config import Config
+from .redact import redact
+from .snapshot import Shadow
+
+TAIL = 4000
+
+
+def detect_test_cmd(root: Path) -> str:
+    if (root / "package.json").exists():
+        try:
+            pkg = json.loads((root / "package.json").read_text())
+            if "test" in pkg.get("scripts", {}):
+                return "npm test --silent"
+        except json.JSONDecodeError:
+            pass
+    if (root / "Cargo.toml").exists():
+        return "cargo test"
+    if (root / "go.mod").exists():
+        return "go test ./..."
+    if (root / "tests").is_dir() or (root / "pytest.ini").exists() or (root / "pyproject.toml").exists():
+        py = "python" if shutil.which("python") else "python3"
+        return f"{py} -m pytest -q"
+    return ""
+
+
+@dataclass
+class Bundle:
+    session: str
+    task: str = ""
+    started: float = field(default_factory=time.time)
+    requirements: list[dict] = field(default_factory=list)
+    test_runs: list[dict] = field(default_factory=list)
+    screenshots: list[dict] = field(default_factory=list)
+    blocks: int = 0
+
+
+class Proof:
+    def __init__(self, cfg: Config, session: str):
+        self.cfg = cfg
+        self.session = session
+        self.dir = cfg.state / "proof" / session
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.path = self.dir / "bundle.json"
+        self.opts = cfg.section("proof")
+
+    # -- persistence --------------------------------------------------------
+    def load(self) -> Bundle:
+        if self.path.exists():
+            return Bundle(**json.loads(self.path.read_text()))
+        return Bundle(session=self.session)
+
+    def save(self, b: Bundle) -> None:
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(b.__dict__, indent=2))
+        tmp.replace(self.path)
+
+    # -- evidence -----------------------------------------------------------
+    def set_task(self, task: str) -> None:
+        b = self.load()
+        if not b.task:
+            b.task = redact(task)[:4000]
+        b.blocks = 0  # a new user prompt resets the gate's reminder budget
+        self.save(b)
+
+    def add_requirements(self, items: list[str]) -> list[dict]:
+        b = self.load()
+        for text in items:
+            text = text.strip()
+            if text and not any(r["text"] == text for r in b.requirements):
+                b.requirements.append({"id": len(b.requirements) + 1, "text": redact(text), "done": False, "evidence": ""})
+        self.save(b)
+        return b.requirements
+
+    def check(self, req_id: int, evidence: str) -> dict:
+        if not evidence.strip():
+            raise ValueError("evidence is required: say what you ran or observed")
+        b = self.load()
+        for r in b.requirements:
+            if r["id"] == req_id:
+                r["done"], r["evidence"], r["ts"] = True, redact(evidence)[:2000], time.time()
+                self.save(b)
+                return r
+        raise ValueError(f"no requirement {req_id}")
+
+    def run_tests(self, phase: str, cmd: str | None = None, timeout: int = 900) -> dict:
+        if phase not in ("before", "after"):
+            raise ValueError("phase must be 'before' or 'after'")
+        cmd = cmd or self.opts.get("test_cmd") or detect_test_cmd(self.cfg.root)
+        if not cmd:
+            raise ValueError("no test command; set [proof].test_cmd in .keelyard/config.toml")
+        t0 = time.time()
+        try:
+            p = subprocess.run(shlex.split(cmd), cwd=self.cfg.root, capture_output=True, text=True, timeout=timeout)
+            code, out = p.returncode, (p.stdout + p.stderr)
+        except subprocess.TimeoutExpired as e:
+            code, out = 124, f"timeout after {timeout}s\n{e.stdout or ''}"
+        except FileNotFoundError as e:
+            code, out = 127, str(e)
+        run = {"phase": phase, "cmd": cmd, "exit": code, "ts": time.time(), "seconds": round(time.time() - t0, 2),
+               "tail": redact(out[-TAIL:])}
+        b = self.load()
+        b.test_runs.append(run)
+        self.save(b)
+        return run
+
+    def screenshot(self, url: str | None = None) -> dict:
+        url = url or self.opts.get("app_url")
+        if not url:
+            raise ValueError("no url given and [proof].app_url not set")
+        out = self.dir / f"shot-{int(time.time() * 1000)}.png"
+        err = _screenshot(url, out)
+        if err:
+            raise RuntimeError(err)
+        shot = {"url": url, "path": str(out), "ts": time.time()}
+        b = self.load()
+        b.screenshots.append(shot)
+        self.save(b)
+        return shot
+
+    # -- the gate -----------------------------------------------------------
+    def last_edit_ts(self) -> float | None:
+        edits = [s.ts for s in Shadow(self.cfg).steps()
+                 if s.session == self.session and s.tool not in ("pre-rewind", "baseline", "stop")]
+        return max(edits) if edits else None
+
+    def missing(self) -> list[str]:
+        """Return what still has to be proven. Empty list = proof complete."""
+        b = self.load()
+        last_edit = self.last_edit_ts()
+        if last_edit is None:
+            return []  # nothing changed in this session: a pure Q&A turn needs no proof
+        gaps = []
+        if not b.requirements:
+            gaps.append("No requirement checklist. Call proof_requirements with the user's asks, one per item.")
+        for r in b.requirements:
+            if not r["done"]:
+                gaps.append(f"Requirement #{r['id']} not verified: {r['text']}")
+        after = [t for t in b.test_runs if t["phase"] == "after" and t["ts"] >= last_edit]
+        if not after:
+            gaps.append("No test run after your last edit. Call proof_run_tests with phase='after'.")
+        elif after[-1]["exit"] != 0:
+            gaps.append(f"Latest test run failed (exit {after[-1]['exit']}). Fix it or explain in a requirement.")
+        if self.opts.get("app_url"):
+            shots = [s for s in b.screenshots if s["ts"] >= last_edit]
+            if not shots:
+                gaps.append("No screenshot of the running app since your last edit. Call proof_screenshot.")
+        return gaps
+
+
+def _screenshot(url: str, out: Path) -> str | None:
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            page = browser.new_page(viewport={"width": 1280, "height": 800})
+            page.goto(url, wait_until="networkidle", timeout=30000)
+            page.screenshot(path=str(out), full_page=True)
+            browser.close()
+        return None
+    except ImportError:
+        pass
+    except Exception as e:  # noqa: BLE001 - surface any browser failure to the agent
+        return f"screenshot failed: {e}"
+    if shutil.which("npx"):
+        p = subprocess.run(["npx", "--yes", "playwright", "screenshot", "--full-page", url, str(out)],
+                           capture_output=True, text=True, timeout=180)
+        return None if p.returncode == 0 and out.exists() else f"npx playwright failed: {p.stderr[-500:]}"
+    return "playwright not available: pip install 'keelyard[web]' && playwright install chromium"
