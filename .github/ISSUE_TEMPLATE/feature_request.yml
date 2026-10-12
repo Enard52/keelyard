@@ -1,0 +1,18 @@
+name: Feature or adapter request
+description: A new filter, agent adapter, proof check or benchmark
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What costs you tokens, time or trust today?
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed behaviour
+  - type: textarea
+    id: sample
+    attributes:
+      label: A real sample (command output, transcript snippet), with secrets removed
+      render: text

@@ -37,8 +37,18 @@ helper_model = "cheap"
 [saver]
 # Deny a repeat Read of an unchanged file (reset on context compaction).
 dedupe_reads = true
+# Filter large Bash results before the model reads them (raw output kept for `keelyard recall`).
+filter_bash = true
+filter_min_chars = 1200
 # Max characters returned by compress_output before head/tail trimming.
 max_output_chars = 6000
+
+# Optional prices for `keelyard usage`, USD per million tokens. keelyard ships none.
+# [prices."your-model-name"]
+# input = 0.0
+# output = 0.0
+# cache_read = 0.0
+# cache_write = 0.0
 
 # Models are plain names you choose; keelyard never assumes a vendor's lineup.
 # provider = "openai" (any OpenAI-compatible /chat/completions) or "anthropic".

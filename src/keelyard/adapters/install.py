@@ -12,7 +12,7 @@ CLAUDE_EVENTS = {
     "UserPromptSubmit": None,
     "PreCompact": None,
     "PreToolUse": "Read",
-    "PostToolUse": "Write|Edit|MultiEdit|NotebookEdit|Bash|Read",
+    "PostToolUse": "Write|Edit|MultiEdit|NotebookEdit|Bash|Read",  # Bash: snapshot + output filter
     "Stop": None,
 }
 CODEX_EVENTS = {

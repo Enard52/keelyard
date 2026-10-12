@@ -1,0 +1,31 @@
+keelyard
+Copyright 2026 Akobir Tulqinov
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Prior art
+---------
+keelyard's output filters, structure-first reading and usage report were designed after
+studying the following projects. No source code from them is included in keelyard; the
+implementations here are written from scratch in Python. They are credited because their
+ideas shaped this work:
+
+- rtk (https://github.com/rtk-ai/rtk), Apache-2.0: per-command output filtering,
+  grouping, deduplication, and recalling elided output by content hash.
+- repomix (https://github.com/yamadashy/repomix), MIT: compressing code to its structure
+  before handing it to a model.
+- claude-context-optimizer (https://github.com/AzozzALFiras/claude-context-optimizer):
+  cached reads, function extraction and project maps exposed over MCP.
+- ccusage (https://github.com/ccusage/ccusage): reading token usage from Claude Code's
+  local session logs.
+- tokensave (https://github.com/aovestdipaperino/tokensave), MIT: code-intelligence MCP
+  tools for agents.
+
+Third-party files
+-----------------
+- CODE_OF_CONDUCT.md is adapted from the Contributor Covenant, version 2.1
+  (https://www.contributor-covenant.org/version/2/1/code_of_conduct.html), licensed under
+  CC BY 4.0. Attribution is kept at the end of that file.
+
+bench/vs_rtk.py runs an unmodified rtk binary that the user downloads separately; rtk is
+not redistributed with keelyard.

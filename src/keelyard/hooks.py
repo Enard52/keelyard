@@ -7,6 +7,7 @@ A hook must never break the agent, so every failure is logged and swallowed.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import time
@@ -24,6 +25,33 @@ EDIT_TOOLS_READ = {"Read", "read", "view"}
 
 def _file_arg(tool_input: dict) -> str | None:
     return tool_input.get("file_path") or tool_input.get("filePath") or tool_input.get("path")
+
+
+def _filter_bash(cfg: config.Config, tin: dict, resp) -> dict | None:
+    """Shrink a finished Bash result in place (Claude Code PostToolUse updatedToolOutput).
+
+    The command already ran unchanged; only what the model reads is filtered, and the raw
+    output stays recoverable with `keelyard recall <id>`. No permission decision is touched.
+    """
+    if not isinstance(resp, dict) or resp.get("isImage") or not isinstance(resp.get("stdout"), str):
+        return None
+    from .filters import filter_output
+    from .saver import approx_tokens
+
+    raw_out, raw_err = resp.get("stdout", ""), resp.get("stderr", "") or ""
+    raw = raw_out + ("\n" + raw_err if raw_err else "")
+    if len(raw) < int(cfg.section("saver").get("filter_min_chars", 1200)):
+        return None
+    small = filter_output(tin.get("command", ""), raw)
+    if len(small) > 0.8 * len(raw):
+        return None
+    h = hashlib.sha256(raw.encode()).hexdigest()[:12]
+    raw_dir = cfg.state / "raw"
+    raw_dir.mkdir(exist_ok=True)
+    (raw_dir / h).write_text(raw)
+    note = f"\n[keelyard filtered {approx_tokens(raw)}→{approx_tokens(small)} tokens; full output: keelyard recall {h}]"
+    return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": {
+        "stdout": small + note, "stderr": "", "interrupted": bool(resp.get("interrupted")), "isImage": False}}}
 
 
 def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
@@ -59,8 +87,6 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
             return None
         prev = rc.seen(p)
         if prev and p.is_file():
-            import hashlib
-
             if hashlib.sha256(p.read_bytes()).hexdigest()[:16] == prev["sha"]:
                 return {"hookSpecificOutput": {
                     "hookEventName": "PreToolUse", "permissionDecision": "deny",
@@ -70,6 +96,9 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
         return None
 
     if event == "PostToolUse":
+        out = None
+        if tool == "Bash" and sav.get("filter_bash", True):
+            out = _filter_bash(cfg, tin, payload.get("tool_response"))
         if tool in EDIT_TOOLS_READ:
             f = _file_arg(tin)
             if f and not tin.get("offset") and not tin.get("limit"):
@@ -82,7 +111,7 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
                     pass
         if rew["enabled"] and tool in rew["snapshot_tools"]:
             Shadow(cfg).snapshot(tool=tool, session=sid)
-        return None
+        return out
 
     if event == "Stop":
         if rew["enabled"]:

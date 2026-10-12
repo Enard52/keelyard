@@ -17,10 +17,11 @@ Ground rules:
 
 Good first contributions:
 
+- A filter for a tool we don't cover yet, with a real output sample and a fact-retention test
 - Real command logs for `bench/corpus/` (strip secrets and personal paths)
 - Adapters for more agents (Aider, Cursor CLI, Gemini CLI, Antigravity)
 - A live-session test for Codex or OpenCode
 - Better compression rules for a specific tool's output
 
-Layout: `src/keelyard/{proof,report,snapshot,tui,swarm,saver,memory,hooks,mcp_server,cli,bench}.py`,
+Layout: `src/keelyard/{proof,report,snapshot,tui,swarm,saver,filters,codemap,memory,usage,arena,hooks,mcp_server,cli,bench}.py`,
 `adapters/` per agent, and tests in `tests/`.

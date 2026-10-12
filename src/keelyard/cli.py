@@ -58,7 +58,26 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("tasks", type=Path)
     p.add_argument("--model", help="[models.<key>] to use")
 
-    sub.add_parser("compress", help="compress stdin like run_compact does")
+    p = sub.add_parser("compress", help="filter stdin; pass the command for command-aware rules")
+    p.add_argument("--cmd", dest="for_cmd", default="")
+    p = sub.add_parser("x", help="run a command with command-aware output filtering")
+    p.add_argument("command", nargs=argparse.REMAINDER)
+    p = sub.add_parser("recall", help="print raw output that a filter elided")
+    p.add_argument("id")
+    p = sub.add_parser("outline", help="signatures-only view of a file")
+    p.add_argument("path", type=Path)
+    sub.add_parser("map", help="compact project map")
+    p = sub.add_parser("sym", help="find where a symbol is defined")
+    p.add_argument("name")
+    p = sub.add_parser("usage", help="token usage from local agent logs")
+    p.add_argument("--by", choices=["day", "model", "agent"], default="day")
+    ar = sub.add_parser("arena", help="run one task across agents/models").add_subparsers(dest="sub", required=True)
+    x = ar.add_parser("run")
+    x.add_argument("spec", type=Path)
+    x.add_argument("--out", type=Path, default=Path("arena-results"))
+    x.add_argument("--only", nargs="*")
+    x = ar.add_parser("render")
+    x.add_argument("out", type=Path)
 
     m = sub.add_parser("mem", help="unified memory").add_subparsers(dest="sub", required=True)
     m.add_parser("ingest")
@@ -142,9 +161,46 @@ def main(argv: list[str] | None = None) -> int:
         tasks = [Task(**t) for t in json.loads(a.tasks.read_text())]
         print(format_results(asyncio.run(Swarm(_cfg(), a.model).run(tasks))))
     elif a.cmd == "compress":
-        from .saver import compress_output
+        from .filters import filter_output
 
-        print(compress_output(sys.stdin.read(), _cfg().section("saver")["max_output_chars"]))
+        print(filter_output(a.for_cmd, sys.stdin.read()))
+    elif a.cmd == "x":
+        import shlex
+
+        from .filters import run_filtered
+
+        cfg = _cfg()
+        cmd = a.command[1:] if a.command[:1] == ["--"] else a.command
+        code, out = run_filtered(shlex.join(cmd), Path.cwd(), cfg.state / "raw")
+        print(out)
+        return code
+    elif a.cmd == "recall":
+        p = _cfg().state / "raw" / a.id
+        if not a.id.isalnum() or not p.exists():
+            print("unknown id", file=sys.stderr)
+            return 1
+        print(p.read_text(), end="")
+    elif a.cmd in ("outline", "map", "sym"):
+        from . import codemap
+
+        if a.cmd == "outline":
+            print(codemap.outline(a.path))
+        elif a.cmd == "map":
+            print(codemap.project_map(_cfg().root))
+        else:
+            print(codemap.find_symbol(_cfg().root, a.name))
+    elif a.cmd == "usage":
+        from .usage import collect, table
+
+        print(table(collect(_cfg().raw.get("prices", {}), by=a.by)))
+    elif a.cmd == "arena":
+        from . import arena
+
+        if a.sub == "run":
+            res = arena.run_task(a.spec, a.out, a.only)
+            print(f"{len(res)} runs -> {a.out / 'report.html'}")
+        else:
+            print(arena.render(a.out))
     elif a.cmd == "mem":
         from .memory import Memory, format_hits
 

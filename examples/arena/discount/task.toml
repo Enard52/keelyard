@@ -1,0 +1,26 @@
+# keelyard arena run examples/arena/discount/task.toml --out arena-results
+# Every agent gets a fresh copy of ./repo; pass/fail comes from `check`.
+# Agent CLI flags change between releases. Check them against your installed versions.
+
+[task]
+name = "coupon-discount"
+repo = "repo"
+prompt = "In cart.py, support coupon='SAVE10' (10% off) and raise ValueError for unknown coupons. Make the tests in test_cart.py pass."
+check = "python3 -m pytest -q"
+runs = 3
+timeout = 900
+
+[[agent]]
+name = "claude-code"
+model = "set-your-model"
+cmd = ["claude", "-p", "{prompt}", "--output-format", "json", "--model", "{model}", "--permission-mode", "acceptEdits"]
+
+[[agent]]
+name = "codex"
+model = "set-your-model"
+cmd = ["codex", "exec", "--json", "--full-auto", "-m", "{model}", "{prompt}"]
+
+[[agent]]
+name = "opencode"
+model = "provider/set-your-model"
+cmd = ["opencode", "run", "-m", "{model}", "{prompt}"]

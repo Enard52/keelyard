@@ -1,0 +1,27 @@
+name: Bug report
+description: Something in keelyard does not work as documented
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options: [Claude Code, Codex, OpenCode, CLI only, Other]
+    validations: { required: true }
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "`keelyard --version`, the agent's version, OS"
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant lines from .keelyard/hook.log
+      description: Remove secrets and private paths first.
+      render: text

@@ -10,18 +10,24 @@ except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server  # type: ignore
 
 from . import config, session
+from .codemap import find_symbol as _find_symbol
+from .codemap import outline as _outline
+from .codemap import project_map as _project_map
+from .filters import run_filtered
 from .memory import Memory, format_hits
 from .proof import Proof
 from .report import render
 from .saver import ReadCache, compress_output, route
-from .saver import run_compact as _run_compact
 from .snapshot import Shadow
 from .swarm import Swarm, Task, format_results, subagent_plan, verify_citations, verify_patch
+from .usage import collect as usage_collect
+from .usage import table as usage_table
 
 INSTRUCTIONS = """keelyard keeps you honest and cheap.
 Before saying a task is done: proof_requirements (list the user's asks), make the change,
 proof_run_tests phase=after, proof_check each requirement with concrete evidence, proof_screenshot for web apps.
-Prefer read_file over re-reading files, run_compact for noisy commands, memory_search before re-deriving past fixes,
+Prefer project_map/outline/find_symbol before reading whole files, read_file over re-reading,
+run_compact for noisy commands, memory_search before re-deriving past fixes,
 and swarm for bulk read/summarise/draft work. Use rewind_list/rewind_to if you broke something."""
 
 mcp = _Server("keelyard", instructions=INSTRUCTIONS)
@@ -104,10 +110,49 @@ def read_file(path: str, start: int = 1, end: int = 0, force: bool = False) -> s
 
 @mcp.tool()
 def run_compact(command: str, timeout: int = 600) -> str:
-    """Run a command (no shell) and return compressed output: errors kept, noise and repeats collapsed."""
+    """Run a command (no shell) and return command-aware filtered output: failures, errors and file:line kept,
+    passes and noise dropped. The raw output is saved; get it back with recall(id)."""
     cfg, _ = _ctx()
-    r = _run_compact(cfg, command, timeout)
-    return f"exit={r['exit']} ({r['raw_tokens']}→{r['returned_tokens']} approx tokens)\n{r['output']}"
+    code, out = run_filtered(command, cfg.root, cfg.state / "raw", timeout)
+    return f"exit={code}\n{out}"
+
+
+@mcp.tool()
+def recall(output_id: str) -> str:
+    """Return the full raw output that run_compact or the Bash filter elided."""
+    cfg, _ = _ctx()
+    if not output_id.isalnum():
+        return "invalid id"
+    p = cfg.state / "raw" / output_id
+    return p.read_text() if p.exists() else "unknown id"
+
+
+@mcp.tool()
+def outline(path: str) -> str:
+    """Signatures, classes and docstring first lines with line numbers. Read this before reading a whole file."""
+    cfg, sid = _ctx()
+    return _outline(ReadCache(cfg, sid).resolve(path))
+
+
+@mcp.tool()
+def project_map() -> str:
+    """Compact map of the repo: files per directory with approximate token sizes."""
+    cfg, _ = _ctx()
+    return _project_map(cfg.root)
+
+
+@mcp.tool()
+def find_symbol(name: str) -> str:
+    """Where is a function/class/type defined? Returns path:line: signature."""
+    cfg, _ = _ctx()
+    return _find_symbol(cfg.root, name)
+
+
+@mcp.tool()
+def usage_report(by: str = "day") -> str:
+    """Token usage from local Claude Code, Codex and OpenCode logs, grouped by day, model or agent."""
+    cfg, _ = _ctx()
+    return usage_table(usage_collect(cfg.raw.get("prices", {}), by=by))
 
 
 @mcp.tool()

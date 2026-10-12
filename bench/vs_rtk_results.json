@@ -1,0 +1,74 @@
+[
+  {
+    "command": "git status",
+    "facts": 9,
+    "raw_tokens": 161,
+    "keelyard_tokens": 61,
+    "rtk_tokens": 58,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 1.0
+  },
+  {
+    "command": "git log -n 40 (requests)",
+    "facts": 40,
+    "raw_tokens": 6807,
+    "keelyard_tokens": 950,
+    "rtk_tokens": 2378,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 1.0
+  },
+  {
+    "command": "git diff",
+    "facts": 91,
+    "raw_tokens": 1653,
+    "keelyard_tokens": 1064,
+    "rtk_tokens": 1557,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 1.0
+  },
+  {
+    "command": "grep -rn (django)",
+    "facts": 15,
+    "raw_tokens": 277,
+    "keelyard_tokens": 230,
+    "rtk_tokens": 277,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 1.0
+  },
+  {
+    "command": "find *.py (admin)",
+    "facts": 30,
+    "raw_tokens": 299,
+    "keelyard_tokens": 136,
+    "rtk_tokens": 113,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 1.0
+  },
+  {
+    "command": "ruff check (django/utils)",
+    "facts": 307,
+    "raw_tokens": 43582,
+    "keelyard_tokens": 3022,
+    "rtk_tokens": 1050,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 0.24104234527687296
+  },
+  {
+    "command": "pytest -v (4 failing of 125)",
+    "facts": 7,
+    "raw_tokens": 3289,
+    "keelyard_tokens": 312,
+    "rtk_tokens": 195,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 0.7142857142857143
+  },
+  {
+    "command": "cargo test (2 failing of 42)",
+    "facts": 6,
+    "raw_tokens": 454,
+    "keelyard_tokens": 126,
+    "rtk_tokens": 119,
+    "keelyard_retention": 1.0,
+    "rtk_retention": 1.0
+  }
+]

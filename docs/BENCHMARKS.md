@@ -2,6 +2,37 @@
 
 Machine: 8 vCPU Linux box, no GPU, Python 3.13. Measured on 2026-10-12. Token counts are `chars / 4`.
 
+## Head-to-head with rtk (`bench/vs_rtk.py`)
+
+```bash
+gh release download -R rtk-ai/rtk -p 'rtk-x86_64-unknown-linux-musl.tar.gz' && tar xzf rtk-*.tar.gz
+git clone --depth 1 https://github.com/django/django /tmp/djb
+git clone --depth 80 https://github.com/psf/requests /tmp/req
+python bench/vs_rtk.py --rtk ./rtk --django /tmp/djb --history /tmp/req --json bench/vs_rtk_results.json
+python bench/plot_vs_rtk.py
+```
+
+The script builds scratch repos: a Django clone with 5 edited files, 3 untracked and 1 deleted; a pytest project with
+4 failing tests out of 125; and a Rust crate with 2 failing tests out of 42. It runs each command once and feeds the
+same raw output to keelyard, while rtk runs the command itself. `FORCE_COLOR` is removed and `NO_COLOR=1` is set
+for all runs. "Facts" are extracted from the raw output with fixed rules (see `facts_*` in the script) and count as
+kept when every part appears verbatim in the filtered text.
+
+| command | facts | raw tok | keelyard tok | keelyard kept | rtk tok | rtk kept |
+|---|---|---|---|---|---|---|
+| git status | 9 | 161 | 61 | 100% | 58 | 100% |
+| git log -n 40 (requests) | 40 | 6,807 | 950 | 100% | 2,378 | 100% |
+| git diff | 91 | 1,653 | 1,064 | 100% | 1,557 | 100% |
+| grep -rn (django) | 15 | 277 | 230 | 100% | 277 | 100% |
+| find *.py (admin) | 30 | 299 | 136 | 100% | 113 | 100% |
+| ruff check (django/utils) | 307 | 43,582 | 3,022 | 100% | 1,050 | 24% |
+| pytest -v (4 failing of 125) | 7 | 3,289 | 312 | 100% | 195 | 71% |
+| cargo test (2 failing of 42) | 6 | 454 | 126 | 100% | 119 | 100% |
+| **total** | | 56,522 | 5,901 | | 5,747 | |
+
+Caveats: one run per command, eight commands, fact rules written by us. rtk drops line numbers from ruff results and
+some assertion lines from pytest, which is why its retention is lower on those two. rtk handles many more tools.
+
 ## Output compression (`keelyard bench`, section `compress`)
 
 The corpus is in `bench/corpus/`. Each file is real output from a real command run on the box, with temporary paths

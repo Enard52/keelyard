@@ -20,7 +20,8 @@ async def _drive(project):
             await s.initialize()
             names = {t.name for t in (await s.list_tools()).tools}
             assert {"proof_requirements", "proof_check", "proof_run_tests", "proof_status", "rewind_list", "rewind_to",
-                    "read_file", "run_compact", "swarm", "swarm_verify", "memory_search", "route_task"} <= names
+                    "read_file", "run_compact", "swarm", "swarm_verify", "memory_search", "route_task", "outline", "project_map",
+                    "find_symbol", "recall", "usage_report"} <= names
 
             out = _text(await s.call_tool("proof_requirements", {"items": ["add works"]}))
             assert "add works" in out
