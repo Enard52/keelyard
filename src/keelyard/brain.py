@@ -16,11 +16,8 @@ from .config import Config
 from .saver import approx_tokens
 
 RULES = (
-    "keelyard is active in this project.\n"
-    "- Every edit is snapshotted; undo with rewind_list / rewind_to (or `keelyard rewind`).\n"
-    "- Before saying done: proof_requirements, proof_run_tests(phase=\"after\"), proof_check each item.\n"
-    "- Explore cheaply: project_map, find_symbol, outline before read_file; run_compact for noisy commands.\n"
-    "- Bulk read/summarise/draft work: swarm (verified helpers) or your own subagents."
+    "keelyard is active. Edits are snapshotted (rewind_list, rewind_to). Before done: proof_run_tests(phase=\"after\") "
+    "and proof_check each item. Find code with find_symbol + read_file ranges. Guides: workflow(\"plan\"|\"debug\"|\"review\")."
 )
 
 
@@ -123,9 +120,23 @@ DESTRUCTIVE = [
 ]
 
 
+QUOTED = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"")
+RUNS_ITS_ARGS = re.compile(r"\b(bash|sh|zsh|pwsh|powershell|cmd)(\.exe)?\s+(-c|/c|-Command)\b|\beval\b|\bssh\b|\bxargs\b", re.I)
+SQL_CLIENT = re.compile(r"\b(psql|mysql|mariadb|sqlite3|sqlcmd|duckdb|clickhouse-client|cockroach\s+sql|dbshell)\b|\.sql\b", re.I)
+
+
 def destructive(cmd: str) -> str | None:
+    """Name of the destructive operation in a shell command, or None.
+
+    Text inside quotes is data (`git commit -m "drop table"`, `echo 'rm -rf /'`) unless the command runs its
+    arguments (`bash -c`, `eval`, `ssh`). SQL is only flagged when a SQL client or a .sql file is involved."""
+    cmd = cmd or ""
+    bare = cmd if RUNS_ITS_ARGS.search(cmd) else QUOTED.sub("''", cmd)
     for rx, name in DESTRUCTIVE:
-        if rx.search(cmd or ""):
+        if name in ("DROP/TRUNCATE", "DELETE without WHERE"):
+            if SQL_CLIENT.search(cmd) and rx.search(cmd):
+                return name
+        elif rx.search(bare):
             return name
     return None
 

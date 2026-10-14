@@ -2,6 +2,17 @@
 
 ## 0.1.0 (unreleased)
 
+### Smaller footprint, workflow pack
+- MCP server exposes 13 core tools by default (`[mcp] tools = "core"`, or `"all"`, or a list); schemas
+  drop pydantic titles. Measured: 1,582 vs 2,401 tokens per session (`bench/overhead.py`)
+- Workflow pack: `workflow("plan"|"debug"|"review")` MCP tool, `/keelyard:plan|debug|review` for Claude Code,
+  `keelyard-*` commands for OpenCode; installed by `init`, loaded only when asked for
+- Compact guide block and brief rules; "be terse" rule
+- Destructive-command check ignores text inside quotes (unless run via `bash -c`, `eval`, `ssh`) and only
+  flags SQL when a SQL client is involved
+- Snapshots skip keelyard's own wiring files and no longer force-add ignored files in untracked folders
+- Screens and hero GIF show `~/` paths; release workflow with PyPI trusted publishing; gitleaks allowlist for test fixtures
+
 ### Always on and stronger helpers
 - Brief at session start and after compaction, past-session recall per prompt, outline/diff on repeat reads
 - Snapshot before destructive commands; rate-limited hints (no tests nearby, session budget); `[brain]` config

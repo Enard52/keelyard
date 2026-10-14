@@ -1,15 +1,9 @@
 ## keelyard
 
-This project uses keelyard (MCP server `keelyard`). It snapshots every edit and will not let you
-finish until the work is proven.
-
-- Start a task with `proof_requirements` (one short, checkable item per thing the user asked).
-- Explore with `project_map`, `find_symbol`, `outline` before reading whole files; use `read_file`.
-- Use `run_compact` for tests, builds and long logs; `recall` returns the full text if you need it.
-- Broke something? `rewind_list`, then `rewind_to` a step. It is undoable.
-- Before saying done: `proof_run_tests` with phase "after", `proof_check` each item with evidence,
-  then `proof_status` must return `"proven": true`.
-- Solved this before? `memory_search` looks through past Claude Code, Codex and OpenCode sessions.
-
-Without MCP, the same actions exist as `keelyard <command> --json` (exit codes: 0 ok, 1 error,
-2 usage, 3 check not passed).
+This project uses keelyard (proof, rewind, smaller context). Rules:
+- Before saying done: proof_requirements, proof_run_tests(phase="after"), proof_check each item. The Stop hook checks.
+- Find code with find_symbol and read_file line ranges; repeat reads of unchanged files are skipped.
+- Noisy commands: run_compact; recall(id) for the full output.
+- Mistake? rewind_list, rewind_to. Every edit is a step.
+- Workflows on demand: workflow("plan" | "debug" | "review").
+- Be terse: no preamble, no restating the question, no summary of what you are about to do.

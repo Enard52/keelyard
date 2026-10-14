@@ -130,6 +130,22 @@ GUIDE_FILE = {"claude": "CLAUDE.md", "codex": "AGENTS.md", "opencode": "AGENTS.m
 CLAUDE_COMMANDS = {"status": "cmd_status.md", "prove": "cmd_prove.md", "undo": "cmd_undo.md"}
 
 
+WORKFLOWS = {"plan": "plan, implement, verify (any multi-step change)",
+             "debug": "reproduce, hypothesise, test, fix the cause",
+             "review": "check a diff: correct, safe, tested, small, clear"}
+
+
+def workflow_text(name: str) -> str:
+    if name not in WORKFLOWS:
+        raise ValueError(f"unknown workflow {name!r}. Hint: one of {', '.join(WORKFLOWS)}.")
+    return _guide(f"workflows/{name}.md")
+
+
+def _command(name: str) -> str:
+    """A slash command file: only the one-line description is in context until the command is used."""
+    return f"---\ndescription: keelyard workflow: {WORKFLOWS[name]}\n---\n{workflow_text(name)}"
+
+
 def _guide(name: str) -> str:
     return resources.files("keelyard.adapters").joinpath("guides", name).read_text(encoding="utf-8")
 
@@ -166,7 +182,16 @@ def install_guides(agent: str, root: Path) -> list[str]:
         cmds.mkdir(parents=True, exist_ok=True)
         for name, src in CLAUDE_COMMANDS.items():
             (cmds / f"{name}.md").write_text(_guide(src), encoding="utf-8")
-        done += [".claude/skills/keelyard/SKILL.md (skill)", "/keelyard:status, /keelyard:prove, /keelyard:undo (slash commands)"]
+        for name in WORKFLOWS:
+            (cmds / f"{name}.md").write_text(_command(name), encoding="utf-8")
+        done += [".claude/skills/keelyard/SKILL.md (skill)",
+                 "/keelyard:status, :prove, :undo, :plan, :debug, :review (slash commands)"]
+    if agent == "opencode":
+        cmds = root / ".opencode" / "command"
+        cmds.mkdir(parents=True, exist_ok=True)
+        for name in WORKFLOWS:
+            (cmds / f"keelyard-{name}.md").write_text(_command(name), encoding="utf-8")
+        done.append("/keelyard-plan, /keelyard-debug, /keelyard-review (commands)")
     return done
 
 
@@ -182,6 +207,12 @@ def uninstall_guides(agent: str, root: Path) -> list[str]:
             if d.is_dir():
                 shutil.rmtree(d)
                 done.append(str(d.relative_to(root)))
+    if agent == "opencode":
+        for name in WORKFLOWS:
+            f = root / ".opencode" / "command" / f"keelyard-{name}.md"
+            if f.exists():
+                f.unlink()
+                done.append(str(f.relative_to(root)))
     return done
 
 

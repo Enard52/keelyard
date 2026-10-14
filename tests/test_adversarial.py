@@ -424,3 +424,50 @@ def test_bare_rewind_lists_steps(project):
 
     config.init(project)
     assert main(["rewind"]) == 0
+
+
+def test_human_output_shortens_home_paths(monkeypatch, tmp_path):
+    """Public screenshots leaked full box paths; human output now shows ~/ for paths under HOME."""
+    from keelyard import ui
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert ui.tilde(tmp_path / "shop") == "~" + os.sep + "shop"
+    assert ui.tilde("/elsewhere/x") == "/elsewhere/x"
+
+
+def test_first_snapshot_skips_keelyard_wiring(project):
+    """Flaw: the init snapshot listed .claude/commands/keelyard/*.md first; rewind could revert keelyard's own files."""
+    from keelyard.adapters.install import install
+    from keelyard.snapshot import Shadow
+
+    config.init(project)
+    install("claude", project)
+    install("opencode", project)
+    step = Shadow(config.load(project)).snapshot(tool="baseline")
+    assert "app.py" in step.files
+    assert not [f for f in step.files if "keelyard" in f and f.startswith((".claude/", ".opencode/"))]
+
+
+def test_untracked_dir_of_ignored_files_is_not_force_added(project):
+    """Bug: `ls-files --directory` reports a dir whose files are all ignored; it was treated as a nested repo and
+    every file in it (e.g. secrets/.env) was force-added to the snapshot."""
+    from keelyard.snapshot import Shadow
+
+    (project / ".gitignore").write_text("secrets/\n")
+    (project / "secrets").mkdir()
+    (project / "secrets" / ".env").write_text("TOKEN=abc\n")
+    step = Shadow(config.load(project)).snapshot(tool="baseline")
+    assert not [f for f in step.files if f.startswith("secrets/")]
+
+
+def test_nested_repo_files_respect_gitignore(project):
+    from keelyard.snapshot import Shadow
+
+    sub = project / "vendor_lib"
+    sub.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=sub, check=True)
+    (sub / "lib.py").write_text("x = 1\n")
+    (sub / "debug.log").write_text("noise\n")
+    step = Shadow(config.load(project)).snapshot(tool="baseline")
+    assert "vendor_lib/lib.py" in step.files and "vendor_lib/debug.log" not in step.files

@@ -37,17 +37,9 @@ from .snapshot import Shadow
 from .swarm import Swarm, Task, plan, subagent_tasks, verify_citations, verify_patch
 from .usage import collect as usage_collect
 
-INSTRUCTIONS = """keelyard: proof, rewind and a smaller context for this project.
-
-Workflow for any task that changes files:
-1. proof_requirements(items=[...])  one short, checkable item per thing the user asked for.
-2. Explore cheaply: project_map, find_symbol, outline, then read_file (repeat reads are deduplicated).
-3. Make the change. Every edit is snapshotted automatically; rewind_list / rewind_to undo mistakes.
-4. run_compact for noisy commands (tests, builds, git log); recall(output_id) if you need the full text.
-5. proof_run_tests(phase="after"), then proof_check(requirement_id, evidence) for each item.
-6. proof_status must say proven=true before you tell the user you are done; the Stop hook enforces it.
-Use memory_search before re-deriving something solved in an earlier session. For bulk read/summarise/draft
-work, swarm_plan(goal) then swarm(tasks): answers are checked (citations, patches tested in a copy)."""
+INSTRUCTIONS = """keelyard: proof, rewind, smaller context. For a change: proof_requirements -> find_symbol,
+read_file(ranges) -> edit (auto-snapshotted; rewind_to undoes) -> run_compact -> proof_run_tests(phase="after")
+-> proof_check each item -> proof_status proven. Step-by-step guides: workflow("plan"|"debug"|"review")."""
 
 mcp = _Server("keelyard", instructions=INSTRUCTIONS)
 
@@ -342,8 +334,72 @@ def status() -> dict[str, Any]:
             "last_step": _step(steps[-1]) if steps else None, "proven": not pf.missing(), "missing": pf.missing()}
 
 
+@_tool(_ann("Workflow guide", read_only=True))
+def workflow(name: Annotated[Literal["plan", "debug", "review"], Field(description="Which guide.")]) -> dict[str, Any]:
+    """A short step-by-step guide: plan (plan-implement-verify), debug (loop), review (diff checklist)."""
+    from .adapters.install import workflow_text
+
+    return {"name": name, "steps": workflow_text(name)}
+
+
+# Loaded by default: the tools the workflow needs. Hooks do the rest without any schema cost.
+CORE = ("proof_requirements", "proof_check", "proof_run_tests", "proof_status", "rewind_list", "rewind_to", "read_file",
+        "run_compact", "recall", "find_symbol", "memory_search", "swarm", "workflow")
+
+
+def _strip_titles(schema):
+    """Pydantic adds a "title" to every schema node; the model never needs them (about 10% of schema tokens)."""
+    if isinstance(schema, dict):
+        return {k: _strip_titles(v) for k, v in schema.items() if not (k == "title" and isinstance(v, str))}
+    if isinstance(schema, list):
+        return [_strip_titles(v) for v in schema]
+    return schema
+
+
+_ALL: dict | None = None
+
+
+def configure_tools(selection: str | list[str] | None = None, app_url: bool = False) -> list[str]:
+    """Keep only the selected tools ("core", "all", or a list of names) and compact their schemas.
+
+    Every tool schema is sent to the model at session start, so unused tools cost tokens in every session."""
+    tools = getattr(getattr(mcp, "_tool_manager", None), "_tools", None)
+    if tools is None:  # unknown SDK internals: leave everything as it is
+        return []
+    global _ALL
+    if _ALL is None:
+        _ALL = dict(tools)
+    tools.clear()
+    tools.update(_ALL)
+    if selection in (None, "core"):
+        keep = set(CORE) | ({"proof_screenshot"} if app_url else set())
+    elif selection == "all":
+        keep = set(tools)
+    else:
+        keep = set(selection)
+    for name in [n for n in tools if n not in keep]:
+        del tools[name]
+    for t in tools.values():
+        if isinstance(getattr(t, "parameters", None), dict):
+            t.parameters = _strip_titles(t.parameters)
+    return sorted(tools)
+
+
 def main() -> None:
     import logging
+    import os
+
+    sel: str | list[str] | None = os.environ.get("KEELYARD_MCP_TOOLS") or None
+    app_url = False
+    try:
+        cfg = config.load()
+        sel = sel or cfg.section("mcp").get("tools", "core")
+        app_url = bool(cfg.section("proof").get("app_url"))
+    except Exception:  # noqa: BLE001 - no project yet: core tools
+        pass
+    if isinstance(sel, str) and "," in sel:
+        sel = [x.strip() for x in sel.split(",") if x.strip()]
+    configure_tools(sel, app_url)
 
     for name in ("httpx", "httpcore", "mcp"):
         logging.getLogger(name).setLevel(logging.WARNING)

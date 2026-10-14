@@ -49,3 +49,14 @@ def error(message: str) -> None:
 
 def plain(text: str) -> None:
     out.print(text, markup=False, highlight=False)
+
+
+def tilde(path) -> str:
+    """A path for people to read: ~/... under the home folder (JSON output keeps full paths)."""
+    import os
+    from pathlib import Path
+
+    p, home = str(path), str(Path.home())
+    if home and home not in (os.sep, "") and (p == home or p.startswith(home + os.sep)):
+        return "~" + p[len(home):]
+    return p

@@ -20,6 +20,16 @@ ideas shaped this work:
   local session logs.
 - tokensave (https://github.com/aovestdipaperino/tokensave), MIT: code-intelligence MCP
   tools for agents.
+- aider (https://github.com/Aider-AI/aider), Apache-2.0, and serena
+  (https://github.com/oraios/serena): a ranked repo map and symbol-level navigation instead
+  of whole-file reads (find_symbol, outline, context packs).
+- obra/superpowers (https://github.com/obra/superpowers), MIT, and github/spec-kit
+  (https://github.com/github/spec-kit), MIT: short plan / debug / review workflows the
+  agent loads only when needed (keelyard's workflow pack is original text).
+- caveman (https://github.com/JuliusBrussee/caveman), Apache-2.0: asking the agent for
+  terse replies to cut output tokens (one "Be terse" rule in the guide block).
+- claude-code-router (https://github.com/musistudio/claude-code-router), MIT: sending each
+  task to the cheapest model that can do it (route_task, swarm escalation).
 
 Third-party files
 -----------------

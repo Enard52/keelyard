@@ -113,3 +113,25 @@ Checking patches against tests removed every false "verified" fix, and the rewri
 more calls. What it does not show: a "verified" answer to a question means its citations exist, not that it is
 right (5 verified, 2-3 right). Ten tasks on one tiny model is a smoke test, not a benchmark; escalation and
 7B+ models are not measured here.
+
+
+## keelyard's own overhead
+
+`python bench/overhead.py` counts what keelyard adds to every session (characters / 4 of compact JSON or text):
+
+| item | tokens |
+|---|---|
+| MCP tool schemas, 13 core tools (default) | 1,582 |
+| MCP tool schemas, all 22 tools (`[mcp] tools = "all"`) | 2,401 |
+| MCP server instructions | 77 |
+| CLAUDE.md / AGENTS.md guide block | 144 |
+| session brief, fresh project (cap 600) | 74 |
+| **total per session, fresh project** | **1,877** |
+| workflow guide, only when asked (plan / debug / review) | 240 / 181 / 182 |
+
+Prompt recall adds at most 250 tokens per prompt and only when past sessions match; hints are capped at 12 per session.
+
+Net: the 8 filtered commands above saved 50,621 tokens, so one session that runs them nets
+**48,744** tokens. At the median saving per command, the fixed overhead is repaid after
+4 filtered commands. A session that never runs a noisy command pays the 1,877 tokens and saves nothing;
+these are per-command measurements, not totals from real sessions.

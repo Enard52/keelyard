@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Footer, OptionList, Static
 from textual.widgets.option_list import Option
 
-from .snapshot import Shadow, Step
+from .snapshot import Shadow, Step, user_first
 
 QUIET = {"baseline", "pre-rewind", "rewind", "stop", "manual"}
 
@@ -37,7 +37,8 @@ ConfirmRewind { align: center middle; background: #00000080; }
 
 def _row(s: Step) -> Text:
     t = dt.datetime.fromtimestamp(s.ts).strftime("%H:%M:%S")
-    files = s.files[0] if s.files else ""
+    first = user_first(s.files)
+    files = first[0] if first else ""
     if len(files) > 18:
         files = "…" + files[-17:]
     if len(s.files) > 1:

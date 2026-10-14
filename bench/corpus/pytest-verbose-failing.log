@@ -1,5 +1,5 @@
 ============================= test session starts ==============================
-platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /workspace/oss/keelyard/.venv/bin/python3
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- ~/keelyard/.venv/bin/python3
 cachedir: .pytest_cache
 rootdir: /tmp/demo/t
 plugins: anyio-4.15.1

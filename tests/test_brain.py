@@ -66,13 +66,16 @@ def test_prompt_recall_skips_the_current_session(cfg, project, tmp_path, monkeyp
     ("psql -c 'DROP TABLE users'", "DROP/TRUNCATE"), ("python manage.py migrate", "database migration"),
     ("npx prisma migrate reset", "database migration"), ("alembic downgrade -1", "database migration"),
     ("Remove-Item -Recurse -Force dist", "Remove-Item -Recurse"),
+    ("bash -c 'rm -rf build'", "rm -rf"), ("sqlite3 app.db \"DELETE FROM users;\"", "DELETE without WHERE"),
+    ("psql -f drop_all.sql", None),
 ])
 def test_destructive_commands_are_recognised(cmd, kind):
     assert destructive(cmd) == kind
 
 
 @pytest.mark.parametrize("cmd", ["rm file.txt", "git reset HEAD a.py", "ls -rf", "git checkout main", "pytest -q",
-                                 "git push origin main"])
+                                 "git push origin main", "echo 'rm -rf /'", 'git commit -m "drop table users; git reset --hard"',
+                                 "grep -n 'DROP TABLE' schema.py", 'rg "rm -rf" docs'])
 def test_safe_commands_pass(cmd):
     assert destructive(cmd) is None
 

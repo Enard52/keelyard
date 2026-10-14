@@ -54,9 +54,9 @@
 
     <rect fill="#111110" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1168" height="243.2" rx="8"/><text class="terminal-415867101-title" fill="#ededea" text-anchor="middle" x="584" y="27">errors</text>
             <g transform="translate(26,22)">
-            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
-            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
-            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            
+            
+            
             </g>
         
     <g transform="translate(9, 41)" clip-path="url(#terminal-415867101-clip-terminal)">

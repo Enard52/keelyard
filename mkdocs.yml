@@ -54,4 +54,5 @@ nav:
       - Exit codes and JSON: json.md
   - Troubleshooting: troubleshooting.md
   - Benchmarks: BENCHMARKS.md
+  - Landscape: landscape.md
   - Feature matrix: feature-matrix.md

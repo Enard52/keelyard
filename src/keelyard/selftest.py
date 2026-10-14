@@ -116,13 +116,13 @@ async def _agent(proj: Path, env: dict, rep: Report) -> None:
             return json.loads("".join(getattr(c, "text", "") for c in res.content))
 
         described = all(t.description and len(t.description) > 30 for t in tools.values())
-        check("mcp: server starts and lists tools", len(tools) >= 18 and bool(init.instructions),
+        check("mcp: server starts and lists tools", len(tools) >= 12 and bool(init.instructions),
               f"{len(tools)} tools, all described" if described else "some tools lack descriptions")
         t0 = time.perf_counter()
         start = _hook("SessionStart", {**base, "source": "startup"}, env, proj) or {}
         brief = start.get("hookSpecificOutput", {}).get("additionalContext", "")
         _hook("UserPromptSubmit", {**base, "prompt": "Make total() apply the discount."}, env, proj)
-        check("hooks: session start + prompt", (await call("status"))["steps"] == 1 and "keelyard brief" in brief,
+        check("hooks: session start + prompt", (await call("rewind_list"))["total"] == 1 and "keelyard brief" in brief,
               f"baseline snapshot, {len(brief) // 4}-token brief injected", t0)
 
         t0 = time.perf_counter()

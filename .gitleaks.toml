@@ -1,0 +1,7 @@
+# Test fixtures use fake, well-known-format keys to check redaction. They are not secrets.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "fake keys in tests"
+paths = ['''tests/test_redact\.py''', '''tests/test_memory\.py''']

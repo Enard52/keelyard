@@ -4,7 +4,9 @@
 #   asciinema rec --cols 92 --rows 26 -c "bash docs/demo/hero.sh" hero.cast && agg hero.cast hero.gif
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/../.." && pwd)
-D=$(mktemp -d)/shop && mkdir -p "$D" && cd "$D" && git init -q
+export HOME=$(mktemp -d)  # the project shows as ~/shop, not a temp path
+D=$HOME/shop && mkdir -p "$D" && cd "$D" && git init -q
+git config user.email demo@example.com; git config user.name demo
 cp "$HERE/examples/arena/discount/repo/"*.py .
 hook() { echo "{\"session_id\":\"s1\",\"cwd\":\"$D\"$2}" | keelyard hook claude "$1" >/dev/null || true; }
 edit() { hook PostToolUse ",\"tool_name\":\"$1\",\"tool_input\":{\"file_path\":\"$2\"}"; }
@@ -13,6 +15,8 @@ say() { printf '\033[38;5;242m# %s\033[0m\n' "$1"; sleep 1.1; }
 run() { type "$1"; eval "$1"; sleep "${2:-1.6}"; echo; }
 
 clear
+printf '\033[1mkeelyard\033[0m\033[38;5;245m  your coding agent has to prove its work, and every step can be undone\033[0m\n\n'
+sleep 1.8
 run "keelyard init --agent claude" 2.2
 say "Claude Code works on: support coupon SAVE10, keep the tests green."
 hook SessionStart ',"source":"startup"'

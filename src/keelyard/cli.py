@@ -254,7 +254,7 @@ def do_init(a):
     data = {"root": str(root), "detected": found, "agents": agents, "dry_run": a.dry_run, "changed": [], "snapshot": None}
     h = _human(a)
     if h:
-        ui.heading("keelyard init", str(root))
+        ui.heading("keelyard init", ui.tilde(root))
         if not (root / ".git").exists():
             ui.out.print("  [warn]not a git repository; keelyard still works here.[/]")
         if not a.agent:
@@ -333,12 +333,14 @@ def _checks() -> list[tuple[str, str, str, str]]:
             rows.append(("system", "bad", mod, f"missing. Hint: pip install {mod}"))
         else:
             rows.append(("system", "skip", mod, f"optional, for {why}: pip install 'keelyard[{extra}]'"))
+    from . import ui
+
     exe = shutil.which("keelyard")
     rows.append(("system", "ok" if exe else "warn", "keelyard on PATH",
-                 exe or "not found; hooks call `keelyard`. Hint: pipx install keelyard"))
+                 ui.tilde(exe) if exe else "not found; hooks call `keelyard`. Hint: pipx install keelyard"))
 
     root = config.find_root()
-    rows.append(("project", "ok", "root", str(root)))
+    rows.append(("project", "ok", "root", ui.tilde(root)))
     cfg = None
     try:
         cfg = config.load(root)
@@ -427,7 +429,7 @@ def do_status(a):
             "last_step": steps[-1].__dict__ if steps else None, "session": sid, "task": b.task,
             "requirements": b.requirements, "proven": not gaps, "missing": gaps}
     if _human(a):
-        ui.heading("keelyard status", str(root))
+        ui.heading("keelyard status", ui.tilde(root))
         ui.out.print("\n  [muted]agents[/]    " + "   ".join(
             f"[ok]{ui.OK}[/] {x}" if v else f"[muted]{ui.DOT} {x}[/]" for x, v in data["agents"].items()))
         if steps:
@@ -490,8 +492,9 @@ def do_rewind(a):
                 ui.out.print(f"[muted]{day:%a %d %b}[/]")
             room = max(20, ui.out.width - 36)
             # the user's own files first; agent wiring (.claude/, AGENTS.md, ...) last
-            ordered = sorted(s.files, key=lambda f: f.startswith((".claude/", ".codex/", ".opencode/", "AGENTS.md", "CLAUDE.md",
-                                                                  "opencode.json", ".mcp.json")))
+            from .snapshot import user_first
+
+            ordered = user_first(s.files)
             files = ", ".join(ordered[:3])
             more = f"  +{len(s.files) - 3}" if len(s.files) > 3 else ""
             if len(files) + len(more) > room:

@@ -223,6 +223,7 @@ def run_all(tmp: Path) -> list[Outcome]:
 MCP_CASES: list[tuple[str, dict, bool, Callable[[dict], bool]]] = [
     # (tool, arguments, expect_error, check)
     ("status", {}, False, lambda d: "steps" in d),
+    ("workflow", {"name": "plan"}, False, lambda d: "proof_requirements" in d["steps"]),
     ("proof_requirements", {"items": ["adds numbers"]}, False, lambda d: d["requirements"][0]["id"] == 1),
     ("proof_requirements", {"items": []}, True, lambda d: True),
     ("proof_check", {"requirement_id": 1, "evidence": "test_add passes"}, False, lambda d: d["done"]),
@@ -260,7 +261,8 @@ async def run_mcp(proj: Path, env: dict) -> list[tuple[str, dict, bool, str]]:
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
     out = []
-    params = StdioServerParameters(command=sys.executable, args=["-m", "keelyard.cli", "mcp"], cwd=str(proj), env=env)
+    all_env = {**env, "KEELYARD_MCP_TOOLS": "all"}
+    params = StdioServerParameters(command=sys.executable, args=["-m", "keelyard.cli", "mcp"], cwd=str(proj), env=all_env)
     async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
         await s.initialize()
         for tool, args, want_err, check in MCP_CASES:

@@ -1,0 +1,36 @@
+{
+  "tool_count": {
+    "core": 13,
+    "all": 22
+  },
+  "schema_tokens": {
+    "core": 1582,
+    "all": 2401
+  },
+  "per_session_fixed": {
+    "mcp_tool_schemas_core": 1582,
+    "mcp_instructions": 77,
+    "agents_md_block": 144,
+    "session_brief_fresh_project": 74
+  },
+  "per_session_total_fresh": 1877,
+  "brief_cap": 600,
+  "on_demand_workflow_tokens": {
+    "plan": 240,
+    "debug": 181,
+    "review": 182
+  },
+  "filter_saving_per_command": {
+    "git status": 100,
+    "git log -n 40 (requests)": 5857,
+    "git diff": 589,
+    "grep -rn (django)": 47,
+    "find *.py (admin)": 163,
+    "ruff check (django/utils)": 40560,
+    "pytest -v (4 failing of 125)": 2977,
+    "cargo test (2 failing of 42)": 328
+  },
+  "filter_saving_total_8_commands": 50621,
+  "net_after_8_commands_fresh": 48744,
+  "commands_to_break_even_median": 4
+}

@@ -47,12 +47,13 @@ def main() -> int:
         if o.case.area != area:
             area = o.case.area
             md += ["", f"## {area}", "", "| | case | command | exit | ms |", "|---|---|---|---|---|"]
-        cmd = "keelyard " + " ".join(a if len(a) < 40 else a[:37] + "..." for a in o.case.argv)
+        argv = [a.replace(sys.executable, "python") for a in o.case.argv]
+        cmd = "keelyard " + " ".join(a if len(a) < 40 else a[:37] + "..." for a in argv)
         md.append(f"| {'✓' if o.ok else '✗'} | {o.case.name}{' — ' + o.note if o.note else ''} | `{cmd}` | {o.exit} | {o.ms} |")
     md += ["", "## MCP tools", "", "Called over stdio by the official MCP client. Error rows check that bad input is refused.", "",
            "| | tool | arguments | result |", "|---|---|---|---|"]
     for tool, args, ok, note in mcp:
-        a = str(args)
+        a = str(args).replace(sys.executable, "python")
         md.append(f"| {'✓' if ok else '✗'} | `{tool}` | `{a if len(a) < 60 else a[:57] + '...'}` | {note or 'ok'} |")
     md += ["", "## Agent self-test", "", "`keelyard selftest`: a scripted agent completes a task through MCP and Claude Code hook payloads.", "",
            "| | step | detail | ms |", "|---|---|---|---|"]

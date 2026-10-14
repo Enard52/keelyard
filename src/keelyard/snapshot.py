@@ -38,6 +38,20 @@ class Step:
         return json.dumps(self.__dict__, ensure_ascii=False)
 
 
+# keelyard's own wiring files are not your work: rewinding must never remove or revert them.
+EXCLUDE = (".keelyard/\n.git/\nnode_modules/\n.venv/\n__pycache__/\n"
+           ".claude/skills/keelyard/\n.claude/commands/keelyard/\n.opencode/plugin/keelyard.js\n"
+           ".opencode/command/keelyard-*.md\n")
+
+
+WIRING = (".claude/", ".codex/", ".opencode/", "AGENTS.md", "CLAUDE.md", "opencode.json", ".mcp.json")
+
+
+def user_first(files: list[str]) -> list[str]:
+    """Your own files first, agent wiring (.claude/, AGENTS.md, ...) last, for display."""
+    return sorted(files, key=lambda f: f.startswith(WIRING))
+
+
 class Shadow:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -74,6 +88,12 @@ class Shadow:
     def _ensure(self) -> None:
         self.cfg.require_project()
         if (self.gitdir / "HEAD").exists():
+            excl = self.gitdir / "info" / "exclude"
+            try:
+                if excl.read_text() != EXCLUDE:  # older timelines: pick up new exclusions
+                    excl.write_text(EXCLUDE)
+            except OSError:
+                pass
             return
         self.cfg.state  # noqa: B018 - creates .keelyard with its .gitignore
         with file_lock(self.lock):
@@ -87,7 +107,7 @@ class Shadow:
         self._git("config", "gc.auto", "0")
         excl = self.gitdir / "info" / "exclude"
         excl.parent.mkdir(exist_ok=True)
-        excl.write_text(".keelyard/\n.git/\nnode_modules/\n.venv/\n__pycache__/\n")
+        excl.write_text(EXCLUDE)
 
     def steps(self) -> list[Step]:
         if not self.log.exists():
@@ -132,8 +152,16 @@ class Shadow:
         changed += self._names("ls-files", "--others", "--directory", "--exclude-standard")
         for rel in changed:
             path = self.root / rel
-            if rel.endswith("/") or (path.is_dir() and (path / ".git").exists()):
-                nested.append(rel.rstrip("/"))
+            if path.is_dir() and path.name not in VENDOR_DIRS:
+                # `git add` skipped this dir: either it is (or holds) a nested repository, or all of it is ignored
+                for dirpath, dirnames, _ in os.walk(path):
+                    if (Path(dirpath) / ".git").exists():
+                        nested.append(Path(dirpath).relative_to(self.root).as_posix())
+                        dirnames[:] = []
+                    else:
+                        dirnames[:] = [d for d in dirnames if d not in VENDOR_DIRS]
+                continue
+            if path.is_dir():
                 continue
             try:
                 if path.is_file() and not path.is_symlink() and path.stat().st_size > limit:
@@ -158,6 +186,10 @@ class Shadow:
                     except OSError:
                         continue
                     entries.append(rel)
+            if entries:  # honour .gitignore and keelyard's excludes inside nested repositories too
+                out = self._git("check-ignore", "--no-index", "--stdin", "-z", input="\0".join(entries).encode(), check=False)
+                ignored = set(out.decode("utf-8", "surrogateescape").split("\0"))
+                entries = [e for e in entries if e not in ignored]
             if entries:
                 shas = self._git("hash-object", "-w", "--stdin-paths", input="\n".join(entries).encode()).decode().split()
                 info = "".join(f"100644 {sha}\t{rel}\n" for sha, rel in zip(shas, entries, strict=True))

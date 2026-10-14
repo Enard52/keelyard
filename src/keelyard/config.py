@@ -58,6 +58,12 @@ max_nudges_per_session = 12
 plan_tokens = 0
 budget_warn_at = 0.6
 
+[mcp]
+# Tools the MCP server offers. Every schema costs tokens in every session, so the default is the 12 the
+# workflow needs. "all" adds outline, project_map, rewind_diff, usage_report, route_task, swarm_plan,
+# swarm_verify, status (and proof_screenshot, which "core" adds by itself when [proof].app_url is set).
+tools = "core"
+
 [saver]
 # Deny a repeat Read of an unchanged file (reset on context compaction).
 dedupe_reads = true
