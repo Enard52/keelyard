@@ -263,20 +263,31 @@ async def swarm(
     cfg, _ = _ctx()
     ts = [Task(kind=t.get("kind", "ask"), prompt=t.get("prompt", ""), files=list(t.get("files", [])),
                symbols=list(t.get("symbols", []))) for t in tasks]
+    coop = bool(cfg.section("swarm").get("cooperative", True))
     try:
-        sw = Swarm(cfg)
-    except KeyError:
+        if coop:
+            from .coop import Coop
+
+            sw = Coop(cfg)
+        else:
+            sw = Swarm(cfg)
+    except (KeyError, ValueError):
         sw = None
     if sw is None or sw.model.get("model") in ("", "set-me", None):
         return {"mode": "plan", "note": "No helper model configured. Send each subagent_prompt to your own subagents "
                 "(Claude Code Task tool, OpenCode subagents), then check answers with swarm_verify.",
                 "subagent_tasks": subagent_tasks(cfg, ts)}
     results = await sw.run(ts)
-    return {"mode": "ran", "verified": sum(r.verified for r in results), "total": len(results),
+    extra = {}
+    if coop:
+        from .coop import summary
+
+        extra = summary(sw, results)
+    return {"mode": "ran", "verified": sum(r.verified for r in results), "total": len(results), **extra,
             "results": [{"id": r.id, "kind": r.kind, "ok": r.ok, "verified": r.verified, "notes": r.notes,
                          "output": r.output[:1500], "tokens_in": r.tokens_in, "tokens_out": r.tokens_out,
                          "attempts": r.attempts, "candidates": r.candidates, "escalated": r.escalated,
-                         "tests_passed": r.tests_passed} for r in results]}
+                         "tests_passed": r.tests_passed, "model": r.model, "critic": r.critic} for r in results]}
 
 
 @_tool(_ann("Split a goal into helper tasks", read_only=True))

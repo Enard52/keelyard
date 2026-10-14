@@ -575,7 +575,7 @@ examples:
 
 ```text
 usage: keelyard <command> [options] swarm run [-h] [--json] [--model MODEL] [--best-of BEST_OF]
-                                              [--retries RETRIES]
+                                              [--retries RETRIES] [--basic]
                                               tasks
 
 run tasks from a JSON file
@@ -589,6 +589,7 @@ options:
   --model MODEL      a [models.<key>] from the config (default: [swarm].helper_model)
   --best-of BEST_OF  samples per task (default: [swarm].best_of)
   --retries RETRIES  retries with checker feedback (default: [swarm].retries)
+  --basic            no blackboard, critic, routing or budget (the plain swarm)
 ```
 
 ## arena

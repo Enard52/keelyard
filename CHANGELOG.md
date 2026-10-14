@@ -2,6 +2,12 @@
 
 ## 0.1.0 (unreleased)
 
+### Cooperative swarm
+- `keelyard.coop`: planner -> workers -> verifier with a shared blackboard, a peer critic, voting, cheapest-capable
+  model routing (`[swarm].ladder`), and hard token budgets (`budget_tokens`, `task_budget_tokens`) enforced by
+  reserving each call's worst case before it is sent. On by default (`cooperative = true`, `--basic` to opt out)
+- Tested with 250 tasks and more than 200 calls in flight; token totals match exactly
+
 ### Smaller footprint, workflow pack
 - MCP server exposes 13 core tools by default (`[mcp] tools = "core"`, or `"all"`, or a list); schemas
   drop pydantic titles. Measured: 1,582 vs 2,401 tokens per session (`bench/overhead.py`)

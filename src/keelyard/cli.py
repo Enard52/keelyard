@@ -208,6 +208,7 @@ def _parser() -> argparse.ArgumentParser:
     x.add_argument("--model", help="a [models.<key>] from the config (default: [swarm].helper_model)")
     x.add_argument("--best-of", type=int, help="samples per task (default: [swarm].best_of)")
     x.add_argument("--retries", type=int, help="retries with checker feedback (default: [swarm].retries)")
+    x.add_argument("--basic", action="store_true", help="no blackboard, critic, routing or budget (the plain swarm)")
     x = r.add_parser("plan", help="split a goal into focused helper tasks (no model call)")
     x.add_argument("goal")
     x.add_argument("--files", nargs="*", default=None, help="limit to these files")
@@ -703,10 +704,22 @@ def do_swarm(a):
         raise Fail(f"{a.tasks}: no such file") from None
     except (ValueError, TypeError) as e:
         raise Fail(f"{a.tasks} must be a JSON list of {{kind, prompt, files}} objects ({e}).") from None
-    results = asyncio.run(Swarm(_cfg(), a.model, best_of=a.best_of, retries=a.retries).run(tasks))
+    cfg = _cfg()
+    extra = {}
+    if cfg.section("swarm").get("cooperative", True) and not a.basic:
+        from .coop import Coop, summary
+
+        sw = Coop(cfg, best_of=a.best_of, retries=a.retries)
+        results = asyncio.run(sw.run(tasks))
+        extra = summary(sw, results)
+    else:
+        results = asyncio.run(Swarm(cfg, a.model, best_of=a.best_of, retries=a.retries).run(tasks))
     if _human(a):
         print(format_results(results))
-    return 0, {"verified": sum(r.verified for r in results), "total": len(results), "results": [r.__dict__ for r in results]}
+        if extra:
+            print(f"tokens {extra['tokens']:,} · {extra['calls']} calls · by model {extra['tokens_by_model']}")
+    return 0, {"verified": sum(r.verified for r in results), "total": len(results), **extra,
+               "results": [r.__dict__ for r in results]}
 
 
 def do_arena(a):

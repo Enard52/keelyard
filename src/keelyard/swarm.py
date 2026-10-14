@@ -62,6 +62,9 @@ class Result:
     candidates: int = 0
     escalated: bool = False
     tests_passed: bool | None = None
+    model: str = ""  # model that produced the accepted answer (cooperative swarm)
+    critic: str | None = None  # the peer reviewer's verdict on it
+    consensus: int = 0  # how many candidates agreed with it
 
 
 # --------------------------------------------------------------------------- providers
@@ -374,10 +377,12 @@ class Swarm:
         self._baseline: set[str] | None = None
         self._baseline_lock = asyncio.Lock()
 
-    async def _sample(self, client, model, t: Task, feedback: str, temp: float) -> tuple[str, bool, list[str], int, int, bool | None]:
+    async def _sample(self, client, model, t: Task, feedback: str, temp: float,
+                      extra: str = "") -> tuple[str, bool, list[str], int, int, bool | None]:
         root = self.cfg.root
         ctx = context_pack(root, t.files, t.symbols)
         fb = f"\n\nYour previous attempt was rejected:\n{feedback}\nFix exactly that." if feedback else ""
+        fb += f"\n\n{extra}" if extra else ""
         if t.kind == "draft_edit":
             if len(t.files) == 1 and len(t.symbols) == 1:
                 # small models are far better at rewriting one definition than at writing diffs; keelyard

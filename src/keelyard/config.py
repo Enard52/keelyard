@@ -41,6 +41,15 @@ best_of = 2
 retries = 1
 escalate_model = "strong"
 test_patches = true
+# Cooperative mode (default; `keelyard swarm run --basic` turns it off for one run): models tried cheapest first
+# ([] = helper_model then escalate_model), concurrent workers, a peer critic, and hard token caps
+# (0 = no cap). Calls are refused before they are made once a cap would be crossed.
+cooperative = true
+ladder = []
+workers = 64
+critic = true
+budget_tokens = 200000
+task_budget_tokens = 20000
 
 [brain]
 # Give the agent a short keelyard brief at session start and again after context compaction.
@@ -59,7 +68,7 @@ plan_tokens = 0
 budget_warn_at = 0.6
 
 [mcp]
-# Tools the MCP server offers. Every schema costs tokens in every session, so the default is the 12 the
+# Tools the MCP server offers. Every schema costs tokens in every session, so the default is the 13 the
 # workflow needs. "all" adds outline, project_map, rewind_diff, usage_report, route_task, swarm_plan,
 # swarm_verify, status (and proof_screenshot, which "core" adds by itself when [proof].app_url is set).
 tools = "core"

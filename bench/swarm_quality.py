@@ -1,4 +1,5 @@
-"""Measure helper quality: single-shot (old swarm) vs the verified pipeline, on a small fixed task set.
+"""Measure helper quality on a small fixed task set: single-shot, the verified pipeline, the best local
+configuration we can afford (more samples and retries), and the cooperative swarm (blackboard, critic, voting).
 
 Usage: python bench/swarm_quality.py [--base-url http://localhost:11434/v1] [--model qwen-coder-1.5b] [--runs 2]
 Ground truth for drafts = the full test suite passes after applying the patch in a throwaway copy.
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from keelyard import config  # noqa: E402
+from keelyard.coop import Coop  # noqa: E402
 from keelyard.swarm import CITE, Swarm, Task, plan, test_patch  # noqa: E402
 
 FILLER = "".join(f"\n\ndef helper_{i}(x):\n    \"\"\"Unrelated helper {i}.\"\"\"\n    return x * {i} + {i}\n" for i in range(25))
@@ -65,7 +67,7 @@ def write_cfg(d: Path, base_url: str, model: str) -> None:
     py = Path(sys.executable).as_posix()
     (d / ".keelyard" / "config.toml").write_text(
         f'[proof]\ntest_cmd = "{py} -m pytest -q -p no:cacheprovider"\n'
-        f'[swarm]\nconcurrency = 2\nescalate_model = ""\n'
+        f'[swarm]\nconcurrency = 2\nworkers = 2\nescalate_model = ""\n'
         f'[models.cheap]\nprovider = "openai"\nbase_url = "{base_url}"\nmodel = "{model}"\nmax_tokens = 600\n')
 
 
@@ -75,7 +77,12 @@ async def run_mode(cfg, mode: str) -> dict:
         drafts = [Task("draft_edit", g, [f]) for g, f, _ in DRAFTS]
         asks = [Task("ask", q, [f]) for q, f, _, _ in ASKS]
     else:
-        sw = Swarm(cfg, best_of=3, retries=1, test_patches=True)
+        if mode == "pipeline":
+            sw = Swarm(cfg, best_of=3, retries=1, test_patches=True)
+        elif mode == "best-local":  # stand-in for "one strong agent": the most compute we give one model
+            sw = Swarm(cfg, best_of=5, retries=2, test_patches=True)
+        else:
+            sw = Coop(cfg, best_of=3, retries=1, test_patches=True)
         drafts = [plan(cfg, g, [f])[0] for g, f, _ in DRAFTS]
         for t, (_, _, syms) in zip(drafts, DRAFTS, strict=True):
             t.symbols = syms  # what plan() finds by symbol name; set explicitly since files= skips the lookup
@@ -96,10 +103,14 @@ async def run_mode(cfg, mode: str) -> dict:
     def cites_line(text, f, line):
         return any(Path(p).name == f and int(a) <= line <= int(b or a) for p, a, b in CITE.findall(text))
     correct_a = sum(1 for r, (_, f, _, ln) in zip(a_res, ASKS, strict=True) if cites_line(r.output, f, ln))
-    return {"mode": mode, "drafts_correct": correct_d, "drafts_verified": claimed_d, "drafts_verified_but_wrong": false_ok,
+    tokens = sum(r.tokens_in + r.tokens_out for r in res)
+    calls = sw.ledger.calls if isinstance(sw, Coop) else sum(r.candidates for r in res)
+    return {"mode": mode, "correct": correct_d + correct_a, "tokens": tokens,
+            "tokens_per_correct": round(tokens / (correct_d + correct_a)) if correct_d + correct_a else None,
+            "drafts_correct": correct_d, "drafts_verified": claimed_d, "drafts_verified_but_wrong": false_ok,
             "asks_correct": correct_a, "asks_verified": sum(r.verified for r in a_res),
             "tokens_in": sum(r.tokens_in for r in res), "tokens_out": sum(r.tokens_out for r in res),
-            "model_calls": sum(r.candidates for r in res), "seconds": round(secs, 1)}
+            "model_calls": calls, "seconds": round(secs, 1)}
 
 
 def main() -> None:
@@ -107,11 +118,12 @@ def main() -> None:
     ap.add_argument("--base-url", default="http://localhost:11434/v1")
     ap.add_argument("--model", default="qwen-coder-1.5b")
     ap.add_argument("--runs", type=int, default=2)
+    ap.add_argument("--modes", default="single,pipeline,best-local,coop")
     ap.add_argument("--out", type=Path, default=ROOT / "bench" / "swarm_quality.json")
     a = ap.parse_args()
     rows = []
     for run in range(a.runs):
-        for mode in ("single", "pipeline"):
+        for mode in a.modes.split(","):
             with tempfile.TemporaryDirectory() as tmp:
                 d = Path(tmp)
                 make_repo(d)
