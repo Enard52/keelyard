@@ -83,6 +83,7 @@ async def run_mode(cfg, mode: str) -> dict:
             sw = Swarm(cfg, best_of=5, retries=2, test_patches=True)
         else:
             sw = Coop(cfg, best_of=3, retries=1, test_patches=True)
+            sw.critic = mode == "coop"  # "coop-nocritic": blackboard, voting, routing and budget only
         drafts = [plan(cfg, g, [f])[0] for g, f, _ in DRAFTS]
         for t, (_, _, syms) in zip(drafts, DRAFTS, strict=True):
             t.symbols = syms  # what plan() finds by symbol name; set explicitly since files= skips the lookup
@@ -118,7 +119,7 @@ def main() -> None:
     ap.add_argument("--base-url", default="http://localhost:11434/v1")
     ap.add_argument("--model", default="qwen-coder-1.5b")
     ap.add_argument("--runs", type=int, default=2)
-    ap.add_argument("--modes", default="single,pipeline,best-local,coop")
+    ap.add_argument("--modes", default="single,pipeline,best-local,coop,coop-nocritic")
     ap.add_argument("--out", type=Path, default=ROOT / "bench" / "swarm_quality.json")
     a = ap.parse_args()
     rows = []
