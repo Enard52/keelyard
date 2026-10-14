@@ -161,7 +161,7 @@ class Coop(Swarm):
         self.board = Blackboard()
         self.ledger = Ledger(o.get("budget_tokens", 0), o.get("task_budget_tokens", 0))
         self.workers = max(1, int(o.get("workers", 64)))
-        self.critic = bool(o.get("critic", True))
+        self.critic = bool(o.get("critic", False))
 
     def _estimate(self, model: dict, t: Task, extra: str, feedback: str) -> int:
         ctx = context_pack(self.cfg.root, t.files, t.symbols)

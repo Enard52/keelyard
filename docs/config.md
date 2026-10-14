@@ -41,7 +41,7 @@ test_patches = true
 cooperative = true
 ladder = []
 workers = 64
-critic = true
+critic = false
 budget_tokens = 200000
 task_budget_tokens = 20000
 

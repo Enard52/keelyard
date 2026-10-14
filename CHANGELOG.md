@@ -3,7 +3,7 @@
 ## 0.1.0 (unreleased)
 
 ### Cooperative swarm
-- `keelyard.coop`: planner -> workers -> verifier with a shared blackboard, a peer critic, voting, cheapest-capable
+- `keelyard.coop`: planner -> workers -> verifier with a shared blackboard, a optional peer critic, voting, cheapest-capable
   model routing (`[swarm].ladder`), and hard token budgets (`budget_tokens`, `task_budget_tokens`) enforced by
   reserving each call's worst case before it is sent. On by default (`cooperative = true`, `--basic` to opt out)
 - Tested with 250 tasks and more than 200 calls in flight; token totals match exactly

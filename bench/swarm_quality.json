@@ -130,6 +130,39 @@
       "model_calls": 94,
       "seconds": 359.8,
       "run": 2
+    },
+    {
+      "mode": "coop-nocritic",
+      "correct": 7,
+      "tokens": 10170,
+      "tokens_per_correct": 1453,
+      "drafts_correct": 4,
+      "drafts_verified": 4,
+      "drafts_verified_but_wrong": 0,
+      "asks_correct": 3,
+      "asks_verified": 5,
+      "tokens_in": 7002,
+      "tokens_out": 3168,
+      "model_calls": 36,
+      "seconds": 217.5,
+      "run": 1
+    },
+    {
+      "mode": "coop-nocritic",
+      "correct": 8,
+      "tokens": 9516,
+      "tokens_per_correct": 1190,
+      "drafts_correct": 4,
+      "drafts_verified": 4,
+      "drafts_verified_but_wrong": 0,
+      "asks_correct": 4,
+      "asks_verified": 5,
+      "tokens_in": 7074,
+      "tokens_out": 2442,
+      "model_calls": 36,
+      "seconds": 170.2,
+      "run": 2
     }
-  ]
+  ],
+  "note": "Only one local model (qwen-coder-1.5b) was available; no strong model or API key. best-local = the same model with best_of 5, retries 2, as the stand-in for one strong agent. Ladder had one tier, so routing was not exercised here."
 }

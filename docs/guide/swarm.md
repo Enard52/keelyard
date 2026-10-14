@@ -48,7 +48,8 @@ what comes back with `swarm_verify`. `keelyard swarm plan "goal" --subagents` pr
 - **Blackboard.** What one worker got verified, and what was tried and rejected, goes into the prompt of the
   next worker on the same files, capped at 1,200 characters.
 - **Critic.** Each candidate that passes the checks is reviewed by a second call (`APPROVE` or
-  `REJECT: reason`). A rejection sends the task back with the reason. Turn it off with `critic = false`.
+  `REJECT: reason`). A rejection sends the task back with the reason. Off by default (`critic = true` turns it on): with a
+  1.5B model it doubled the tokens and caught nothing the tests didn't (see below).
 - **Voting.** Among accepted candidates, the one most others agree with wins (same changed lines, or the
   same cited lines).
 - **Cheapest capable model.** Tasks start on the first model in `ladder` and move up only when the checks
@@ -79,7 +80,7 @@ test_patches = true
 cooperative = true
 ladder = ["cheap", "strong"]   # cheapest first; [] = helper_model then escalate_model
 workers = 64
-critic = true
+critic = false
 budget_tokens = 200000         # hard cap per swarm call, 0 = none
 task_budget_tokens = 20000
 ```
@@ -90,3 +91,5 @@ On 5 small bug fixes with a 1.5B local model, the old single-shot swarm got 0 ri
 patches as verified. The new pipeline got 4 of 5 right in both runs and marked no wrong patch verified, using
 about half the input tokens. For questions, "verified" only means the cited lines exist: 5 were verified, 2-3
 were right. Details: [Benchmarks](../BENCHMARKS.md#swarm-quality).
+
+Cooperative mode, 2 runs × 10 tasks: pipeline 15/20 at 1,272 tokens per correct, best-local 18/20 at 1,560 tokens per correct, coop-nocritic 15/20 at 1,312 tokens per correct, coop 15/20 at 2,943 tokens per correct.

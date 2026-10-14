@@ -115,6 +115,24 @@ right (5 verified, 2-3 right). Ten tasks on one tiny model is a smoke test, not 
 7B+ models are not measured here.
 
 
+### Cooperative swarm vs the best local setup
+
+Same 10 tasks (5 bug fixes, 5 questions), qwen-coder-1.5b on Ollama, 2 runs each. `python bench/swarm_quality.py`.
+
+| mode | correct of 20 (2 runs × 10) | tokens | tokens per correct | wrong patches marked verified |
+|---|---|---|---|---|
+| single | 2 | 27,394 | 13,697 | 5 |
+| pipeline | 15 | 19,073 | 1,272 | 0 |
+| best-local | 18 | 28,081 | 1,560 | 0 |
+| coop-nocritic | 15 | 19,686 | 1,312 | 0 |
+| coop | 15 | 44,149 | 2,943 | 0 |
+
+- `best-local` is the same model with more samples and retries (best_of 5, retries 2). It stands in for "one
+  strong agent" because no stronger model or API key was available. That comparison is still open.
+- `coop` adds the critic. It doubled the tokens and did not improve quality, so `critic` is off by default.
+- `coop-nocritic` (blackboard, voting, budget) costs about the same as the pipeline per correct answer.
+  With one model the ladder had one step, so routing was not exercised here (it is covered by tests).
+
 ## keelyard's own overhead
 
 `python bench/overhead.py` counts what keelyard adds to every session (characters / 4 of compact JSON or text):
