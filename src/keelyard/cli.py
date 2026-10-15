@@ -133,6 +133,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--agent", action="append", choices=["claude", "codex", "opencode"], help="wire only this agent (repeatable)")
     p.add_argument("--no-agents", action="store_true", help="create the config but wire no agent")
     p.add_argument("--dry-run", action="store_true", help="print what would change and stop")
+    p.add_argument("--preset", choices=["lean", "balanced", "max-quality"], default="balanced",
+                   help="lean = fewest tokens (trimmed agent prompt/tools, capped output); balanced = default; "
+                        "max-quality = every keelyard tool over MCP. `keelyard uninstall <agent>` reverts it")
     p.add_argument("--global", dest="glob", action="store_true",
                    help="wire the agents for every project of this user (~/.claude, ~/.codex, ~/.config/opencode); "
                         "projects set themselves up on their first session")
@@ -309,7 +312,7 @@ def do_init(a):
         ui.line("ok", "config", str(cfg_path.relative_to(root)))
     for x in agents:
         was = installed(x, root)
-        items = install(x, root)
+        items = install(x, root, preset=getattr(a, "preset", "balanced"))
         data["changed"] += [f"{x}: {i.splitlines()[0]}" for i in items]
         if h:
             short = []

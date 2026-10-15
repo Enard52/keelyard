@@ -147,10 +147,100 @@ def _command(name: str) -> str:
     return f"---\ndescription: keelyard workflow: {WORKFLOWS[name]}\n---\n{workflow_text(name)}"
 
 
+PRESETS = {
+    "lean": "fewest tokens: trimmed agent prompt and tools, no MCP catalog, short rules, capped tool output",
+    "balanced": "default: hooks, proof from shell test runs, filtered output; MCP only where it is cheap",
+    "max-quality": "every keelyard tool over MCP, full rules; costs more tokens per turn",
+}
+_PRESET = "balanced"  # the preset of the install in progress
+
+# OpenCode 2 `agents.build` override for the lean preset. A non-empty `system` replaces OpenCode's base prompt;
+# the denied tools drop out of the model's tool list. Shell, read, edit, glob and grep stay.
+LEAN_OPENCODE_BUILD = {
+    "system": ("You are a coding agent working in the user's repository. Use the tools to read, edit and run commands. "
+               "Batch independent tool calls in one turn (read every file you need at once). Make the smallest "
+               "correct change, run the tests once after editing, then reply in one or two lines. "
+               "No preamble, no plans, no summaries."),
+    "permissions": [{"action": a, "resource": "*", "effect": "deny"}
+                    for a in ("webfetch", "websearch", "subagent", "skill", "question", "todowrite", "execute")],
+}
+# Claude Code settings.json env for the lean preset (documented Claude Code variables).
+LEAN_CLAUDE_ENV = {"BASH_MAX_OUTPUT_LENGTH": "12000", "MAX_MCP_OUTPUT_TOKENS": "8000",
+                   "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1"}
+
+
+def _preset_file(root: Path) -> Path:
+    return root / ".keelyard" / "preset.json"
+
+
+def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
+    """Write the preset's agent settings and remember exactly what was added, so uninstall can take it back."""
+    pf = _preset_file(root)
+    rec = json.loads(pf.read_text()) if pf.exists() else {}
+    rec["preset"] = preset
+    added = rec.setdefault("added", {})
+    done = []
+    if preset == "lean" and agent == "opencode":
+        path = root / "opencode.json"
+        data = _read_json(path)
+        agents = data.setdefault("agents", {})
+        if "build" not in agents or agents["build"] == LEAN_OPENCODE_BUILD:
+            agents["build"] = LEAN_OPENCODE_BUILD
+            _write_json(path, data)
+            added["opencode_build"] = True
+            done.append("opencode.json (lean build agent: short prompt, 7 unused tools off)")
+    if preset == "lean" and agent == "claude":
+        path = root / ".claude" / "settings.json"
+        data = _read_json(path)
+        env = data.setdefault("env", {})
+        keys = [k for k, v in LEAN_CLAUDE_ENV.items() if k not in env]
+        for k in keys:
+            env[k] = LEAN_CLAUDE_ENV[k]
+        _write_json(path, data)
+        added["claude_env"] = sorted(set(added.get("claude_env", [])) | set(keys))
+        done.append(".claude/settings.json (lean env: capped tool output, no extra model calls)")
+    pf.parent.mkdir(parents=True, exist_ok=True)
+    pf.write_text(json.dumps(rec, indent=1))
+    return done
+
+
+def _remove_preset(agent: str, root: Path) -> list[str]:
+    pf = _preset_file(root)
+    if not pf.exists():
+        return []
+    rec = json.loads(pf.read_text())
+    added, done = rec.get("added", {}), []
+    if agent == "opencode" and added.pop("opencode_build", None):
+        path = root / "opencode.json"
+        data = _read_json(path) if path.exists() else {}
+        if data.get("agents", {}).get("build") == LEAN_OPENCODE_BUILD:
+            del data["agents"]["build"]
+            if not data["agents"]:
+                del data["agents"]
+            _write_json(path, data)
+            done.append("opencode.json (lean build agent)")
+    if agent == "claude" and added.get("claude_env"):
+        path = root / ".claude" / "settings.json"
+        data = _read_json(path) if path.exists() else {}
+        env = data.get("env", {})
+        for k in added.pop("claude_env"):
+            if env.get(k) == LEAN_CLAUDE_ENV[k]:
+                env.pop(k)
+        if "env" in data and not env:
+            del data["env"]
+        _write_json(path, data)
+        done.append(".claude/settings.json (lean env)")
+    if added:
+        pf.write_text(json.dumps(rec, indent=1))
+    else:
+        pf.unlink()
+    return done
+
+
 def opencode_mcp() -> bool:
     """OpenCode 2 puts every MCP tool in a code-mode catalog in context, which costs more than it saves on most
     tasks. keelyard works without it there (proof from shell test runs); KEELYARD_OPENCODE_MCP=1 adds the server."""
-    return os.environ.get("KEELYARD_OPENCODE_MCP", "") in ("1", "true", "yes")
+    return _PRESET == "max-quality" or os.environ.get("KEELYARD_OPENCODE_MCP", "") in ("1", "true", "yes")
 
 
 def _plugin_js() -> str:
@@ -185,7 +275,8 @@ def _set_block(path: Path, body: str | None) -> bool:
 def install_guides(agent: str, root: Path) -> list[str]:
     """Teach the agent the workflow: an instructions block, plus a skill and slash commands for Claude Code."""
     done = []
-    lean = agent == "opencode" and not opencode_mcp() and not installed("codex", root)
+    lean = (_PRESET == "lean" or (agent == "opencode" and not opencode_mcp())) and _PRESET != "max-quality" \
+        and not (agent == "opencode" and installed("codex", root) and _PRESET != "lean")
     _set_block(root / GUIDE_FILE[agent], _guide("agents_block_lean.md" if lean else "agents_block.md"))
     done.append(f"{GUIDE_FILE[agent]} (keelyard section)")
     if agent == "claude":
@@ -230,9 +321,20 @@ def uninstall_guides(agent: str, root: Path) -> list[str]:
     return done
 
 
-def install(agent: str, root: Path) -> list[str]:
+def install(agent: str, root: Path, preset: str = "balanced") -> list[str]:
+    global _PRESET
     if agent not in AGENTS:
         raise InstallError(f"unknown agent {agent!r}. Hint: choose one of {', '.join(AGENTS)}.")
+    if preset not in PRESETS:
+        raise InstallError(f"unknown preset {preset!r}. Hint: choose one of {', '.join(PRESETS)}.")
+    _PRESET = preset
+    try:
+        return _install(agent, root) + _apply_preset(agent, root, preset)
+    finally:
+        _PRESET = "balanced"
+
+
+def _install(agent: str, root: Path) -> list[str]:
     for rel, _ in FILES[agent]:  # validate everything first, so a bad file never leaves a half install
         _read_json(root / rel)
     done = []
@@ -262,7 +364,7 @@ def uninstall(agent: str, root: Path) -> list[str]:
     """Remove only keelyard's entries; everything else in those files is left as it was."""
     if agent not in AGENTS:
         raise InstallError(f"unknown agent {agent!r}. Hint: choose one of {', '.join(AGENTS)}.")
-    done = []
+    done = _remove_preset(agent, root)
     for rel, key in FILES[agent]:
         path = root / rel
         if not path.exists():
