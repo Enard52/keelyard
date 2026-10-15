@@ -46,7 +46,7 @@ keelyard init --preset lean   # fewest tokens (reversible with keelyard uninstal
 Then use your agent as usual. `keelyard status` shows where things stand, and `keelyard doctor` checks
 the setup. `keelyard selftest` runs a scripted agent through the whole flow in a temporary folder.
 
-> **Real runs (OpenCode 2, Windows, free model):** with `keelyard init --preset lean`, 9.7× fewer input tokens on a noisy 1,566-test task (97k → 10k) and 3.7× fewer on a small 66-test task (45k → 12k); all tests pass and proof is recorded. Single runs, details and caveats in [BENCHMARKS.md](BENCHMARKS.md#presets-measured-on-opencode-2). Presets: [docs/guide/presets.md](docs/guide/presets.md).
+> **Real runs (OpenCode 2, Windows, free model):** with `keelyard init --preset lean`, mean input tokens per session fell **14.2×** on a noisy 1,566-test task (111.8k → 7.9k) and **6.0×** on a small 66-test task (49.4k → 8.3k); 5 baseline and 3 lean runs per task, all tests passing, proof recorded. Details and caveats in [BENCHMARKS.md](BENCHMARKS.md#lean-preset-v2-repeated-runs-oct-15-2026). Presets: [docs/guide/presets.md](docs/guide/presets.md).
 
 ## What it does
 

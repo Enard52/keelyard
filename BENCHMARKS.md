@@ -67,3 +67,24 @@ small task **3.7× fewer** (45,383 → 12,132). Balanced mode on the small task 
 (7 model calls); the session-to-session spread of the same setup is large, so treat single runs as indicative.
 Where the savings come from: the lean OpenCode agent's first request is ~1.5k tokens instead of ~5.5k
 (prompt and tool list), and `pytest -v` output reaches the model as ~300 tokens instead of ~13k.
+
+### Lean preset v2, repeated runs (Oct 15, 2026)
+
+`keelyard init --preset lean` now also puts small project files and the pre-edit test result into the brief and
+reruns the tests after each edit (result appended to the edit's output), so the agent needs no read or "before"
+test calls. Installed through the real `keelyard init --agent opencode --preset lean` on the PC. Same task, free
+`opencode/big-pickle`, $0. Raw data: `bench/real/r6`–`r9/summary.json`.
+
+| task | setup | runs | input tokens incl. cache, per run | mean | model calls |
+|---|---|---|---|---|---|
+| small (66 tests) | baseline | 5 | 46,916 · 43,849 · 43,946 · 43,964 · 68,450 | 49,425 | 5–9 |
+| small (66 tests) | **lean v2** | 3 | 7,884 · 8,950 · 7,973 | **8,269** | 3 |
+| noisy (1,566 tests) | baseline | 5 | 101,528 · 93,397 · 139,837 · 94,923 · 129,229 | 111,783 | 5–11 |
+| noisy (1,566 tests) | **lean v2** | 3 | 8,283 · 7,079 · 8,208 | **7,857** | 3 |
+
+Mean ratio: **noisy 14.2× fewer, small 6.0× fewer** input tokens. Every counted run ended with all tests
+passing; every lean run has proof "proven". Two lean runs from an earlier 12-way parallel batch (r8) are not
+counted: OpenCode crashed at startup ("Standalone server exited before reporting readiness") before the agent
+did anything. The small task does not reach 10×: three model calls (edit, the test run the task text asks for,
+final reply) at ~2.2–3k tokens each are the floor we could reach; the remaining per-call cost is OpenCode's
+tool definitions plus the brief.

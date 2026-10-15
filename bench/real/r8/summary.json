@@ -1,0 +1,112 @@
+{
+ "noisy-base-1": {
+  "cost_usd": 0,
+  "input_cache_read": 111033,
+  "input_total": 139837,
+  "input_uncached": 28804,
+  "model_calls": 11,
+  "output": 873,
+  "reasoning": 411,
+  "tool_result_chars": 56327
+ },
+ "noisy-base-2": {
+  "cost_usd": 0,
+  "input_cache_read": 66631,
+  "input_total": 94923,
+  "input_uncached": 28292,
+  "model_calls": 7,
+  "output": 1021,
+  "reasoning": 123,
+  "tool_result_chars": 56362
+ },
+ "noisy-base-3": {
+  "cost_usd": 0,
+  "input_cache_read": 96256,
+  "input_total": 129229,
+  "input_uncached": 32973,
+  "model_calls": 6,
+  "output": 743,
+  "reasoning": 794,
+  "tool_result_chars": 104378
+ },
+ "noisy-lean-1": {
+  "cost_usd": 0,
+  "input_cache_read": 8640,
+  "input_total": 10669,
+  "input_uncached": 2029,
+  "model_calls": 4,
+  "output": 383,
+  "reasoning": 140,
+  "tool_result_chars": 2077
+ },
+ "noisy-lean-3": {
+  "cost_usd": 0,
+  "input_cache_read": 5696,
+  "input_total": 7227,
+  "input_uncached": 1531,
+  "model_calls": 3,
+  "output": 312,
+  "reasoning": 126,
+  "tool_result_chars": 551
+ },
+ "small-base-1": {
+  "cost_usd": 0,
+  "input_cache_read": 36992,
+  "input_total": 43946,
+  "input_uncached": 6954,
+  "model_calls": 5,
+  "output": 605,
+  "reasoning": 192,
+  "tool_result_chars": 14532
+ },
+ "small-base-2": {
+  "cost_usd": 0,
+  "input_cache_read": 37504,
+  "input_total": 43964,
+  "input_uncached": 6460,
+  "model_calls": 5,
+  "output": 616,
+  "reasoning": 105,
+  "tool_result_chars": 14532
+ },
+ "small-base-3": {
+  "cost_usd": 0,
+  "input_cache_read": 43915,
+  "input_total": 68450,
+  "input_uncached": 24535,
+  "model_calls": 9,
+  "output": 442,
+  "reasoning": 794,
+  "tool_result_chars": 14348
+ },
+ "small-lean-1": {
+  "cost_usd": 0,
+  "input_cache_read": 2636,
+  "input_total": 9285,
+  "input_uncached": 6649,
+  "model_calls": 4,
+  "output": 276,
+  "reasoning": 134,
+  "tool_result_chars": 1501
+ },
+ "small-lean-2": {
+  "cost_usd": 0,
+  "input_cache_read": 6528,
+  "input_total": 9744,
+  "input_uncached": 3216,
+  "model_calls": 4,
+  "output": 310,
+  "reasoning": 72,
+  "tool_result_chars": 1581
+ },
+ "small-lean-3": {
+  "cost_usd": 0,
+  "input_cache_read": 0,
+  "input_total": 0,
+  "input_uncached": 0,
+  "model_calls": 0,
+  "output": 0,
+  "reasoning": 0,
+  "tool_result_chars": 0
+ }
+}

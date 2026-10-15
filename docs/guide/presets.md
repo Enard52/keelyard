@@ -9,7 +9,8 @@ keelyard uninstall opencode          # reverts the preset too (only what keelyar
 
 | | lean | balanced | max-quality |
 |---|---|---|---|
-| Proof | from the agent's own shell test runs | same | MCP proof tools + shell runs |
+| Proof | tests run by keelyard after each edit, plus the agent's shell runs | from the agent's shell test runs | MCP proof tools + shell runs |
+| Brief | file map, small project files (≤1,500 tokens), pre-edit test result | file map | rules + file map |
 | Shell output filter | on | on | on |
 | OpenCode | `agents.build` override: 1-paragraph system prompt; webfetch, websearch, subagent, skill, question, todowrite, execute (code mode), glob, grep denied; no MCP catalog | no MCP catalog | MCP server added |
 | Claude Code | `.claude/settings.json` env: `BASH_MAX_OUTPUT_LENGTH=12000`, `MAX_MCP_OUTPUT_TOKENS=8000`, `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1` (your values win) | hooks + MCP | hooks + MCP |
