@@ -79,6 +79,24 @@ def _filter_bash(cfg: config.Config, tin: dict, resp) -> dict | None:
         "stdout": small + note, "stderr": "", "interrupted": bool(resp.get("interrupted")), "isImage": False}}}
 
 
+def _auto_test(cfg: config.Config, sid: str, resp) -> dict | None:
+    """Run the tests after an edit and hand the agent a compact result with the edit's own output."""
+    from .filters import filter_output
+
+    try:
+        run = Proof(cfg, sid).run_tests("after")
+    except Exception as e:  # noqa: BLE001 - no test command: say so once, never break the edit
+        note = f"[keelyard: tests not run: {e}]"
+    else:
+        small = filter_output(run["cmd"], run["tail"])[-1200:].strip()
+        note = f"[keelyard ran `{run['cmd']}` after this edit: exit {run['exit']}]\n{small}"
+    orig = resp.get("stdout", "") if isinstance(resp, dict) and isinstance(resp.get("stdout"), str) else None
+    if orig is None:
+        return _ctx("PostToolUse", note)
+    return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": {
+        "stdout": (orig.rstrip() + "\n" + note).strip(), "stderr": "", "interrupted": False, "isImage": False}}}
+
+
 def _ingest_memory(cfg: config.Config, every_s: int = 600) -> None:
     """Keep the memory index fresh for UserPromptSubmit recall: incremental, at most every 10 minutes."""
     mark = cfg.state / "memory.ingested"
@@ -224,6 +242,8 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
                     pass
         if rew["enabled"] and tool in rew["snapshot_tools"]:
             Shadow(cfg).snapshot(tool=tool, session=sid)
+        if tool in EDIT_TOOLS_WRITE and cfg.section("proof").get("auto_test_after_edit"):
+            out = _merge(out, _auto_test(cfg, sid, payload.get("tool_response")))
         return out
 
     if event == "Stop":

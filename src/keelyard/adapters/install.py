@@ -157,10 +157,10 @@ _PRESET = "balanced"  # the preset of the install in progress
 # OpenCode 2 `agents.build` override for the lean preset. A non-empty `system` replaces OpenCode's base prompt;
 # the denied tools drop out of the tool list. Shell, read, edit and write stay (the brief carries the file map).
 LEAN_OPENCODE_BUILD = {
-    "system": ("You are a coding agent working in the user's repository. Use the tools to read, edit and run commands. "
-               "Batch independent tool calls in one turn (read every file you need at once). Make the smallest "
-               "correct change, run the tests once after editing, then reply in one or two lines. "
-               "No preamble, no plans, no summaries."),
+    "system": ("You are a coding agent in the user's repository. The project files are already in your context: do "
+               "not read or list them. Make every edit in one turn (parallel tool calls). keelyard runs the tests after "
+               "each edit and appends the result, so do not run them yourself. When they pass, reply in one line. "
+               "No preamble, plans or summaries."),
     "permissions": [{"action": a, "resource": "*", "effect": "deny"}
                     for a in ("webfetch", "websearch", "subagent", "skill", "question", "todowrite", "execute", "glob", "grep")],
 }
@@ -180,6 +180,13 @@ def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
     rec["preset"] = preset
     added = rec.setdefault("added", {})
     done = []
+    cfg_path = root / ".keelyard" / "config.toml"
+    if preset == "lean" and cfg_path.exists():
+        text = cfg_path.read_text(encoding="utf-8")
+        text = re.sub(r"(?m)^inline_files_tokens = 0$", "inline_files_tokens = 1500", text)
+        text = re.sub(r"(?m)^auto_test_after_edit = false$", "auto_test_after_edit = true", text)
+        cfg_path.write_text(text, encoding="utf-8")
+        done.append(".keelyard/config.toml (lean: project files in the brief, tests run after each edit)")
     if preset == "lean" and agent == "opencode":
         path = root / "opencode.json"
         data = _read_json(path)

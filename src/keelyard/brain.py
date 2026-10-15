@@ -65,7 +65,43 @@ def brief(cfg: Config, session: str, budget_tokens: int | None = None, query: st
             if rest > 40:
                 out.append(_cap(p, rest))
             break
-    return "\n\n".join(out)
+    inline = inline_files(cfg, int(cfg.section("brain").get("inline_files_tokens", 0) or 0))
+    return "\n\n".join(out + ([inline] if inline else []))
+
+
+SOURCE_EXT = {".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".rb", ".java", ".kt", ".cs", ".php", ".c", ".h",
+              ".cpp", ".hpp", ".swift", ".toml", ".cfg", ".ini", ".json", ".yaml", ".yml", ".md", ".txt", ".sh"}
+
+
+def inline_files(cfg: Config, budget: int) -> str:
+    """Full text of the smallest project files, smallest first, within budget: the agent can skip read calls."""
+    if budget <= 0:
+        return ""
+    from .codemap import AGENT_FILES, tracked_files
+
+    files = []
+    for rel in tracked_files(cfg.root):
+        p = cfg.root / rel
+        if rel.split("/")[0] in AGENT_FILES or p.suffix not in SOURCE_EXT or rel.startswith(".git"):
+            continue
+        try:
+            files.append((p.stat().st_size, rel))
+        except OSError:
+            continue
+    out, used = [], 0
+    for _, rel in sorted(files):
+        try:
+            text = (cfg.root / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        t = approx_tokens(text) + 8
+        if used + t > budget:
+            break
+        out.append(f"--- {rel}\n{text.rstrip()}")
+        used += t
+    if not out:
+        return ""
+    return "Project files (current text; no need to read them again):\n" + "\n".join(out)
 
 
 # --------------------------------------------------------------------------- recall

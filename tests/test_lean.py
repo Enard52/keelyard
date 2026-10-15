@@ -70,3 +70,38 @@ def test_lean_brief_is_small_and_skips_agent_files(cfg, project):
     b = brief(cfg, "s1", lean=True)
     assert ".opencode" not in b and "AGENTS.md" not in b
     assert len(b) < 600
+
+
+def _set(cfg_path, key, value):
+    import re
+    text = cfg_path.read_text()
+    cfg_path.write_text(re.sub(rf"(?m)^{key} = .*$", f"{key} = {value}", text))
+
+
+def test_brief_inlines_small_project_files(project):
+    from keelyard import config
+
+    config.init(project)
+    _set(project / ".keelyard" / "config.toml", "inline_files_tokens", "800")
+    cfg = config.load(project)
+    b = brief(cfg, "s1", lean=True)
+    assert "def add(a, b):" in b and "--- app.py" in b and "--- tests/test_app.py" in b
+
+
+def test_auto_test_after_edit_appends_result_and_proves(project):
+    import sys
+
+    from keelyard import config
+
+    config.init(project)
+    p = project / ".keelyard" / "config.toml"
+    _set(p, "auto_test_after_edit", "true")
+    _set(p, "test_cmd", f'"{sys.executable} -m pytest -q"'.replace("\\", "/"))
+    cfg = config.load(project)
+    hooks.handle("UserPromptSubmit", ev("UserPromptSubmit", prompt="make add() take 3 args"), cfg)
+    (project / "app.py").write_text("def add(a, b, c=0):\n    return a + b + c\n")
+    out = hooks.handle("PostToolUse", ev("PostToolUse", tool_name="edit", tool_input={"filePath": "app.py"},
+                                         tool_response={"stdout": "Edit applied.", "stderr": ""}), cfg)
+    text = out["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
+    assert text.startswith("Edit applied.") and "1 passed" in text and len(text) < 800
+    assert hooks.handle("Stop", ev("Stop"), cfg) is None

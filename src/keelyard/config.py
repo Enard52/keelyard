@@ -22,6 +22,9 @@ app_url = ""
 max_blocks = 3
 # No checklist written? A passing test run after the last edit (also one run in the agent's shell) proves the task.
 auto_requirements = true
+# Run the tests after every edit and append a compact result to the edit's output, so the agent needs no
+# separate test call. The lean preset turns this on.
+auto_test_after_edit = false
 
 [rewind]
 enabled = true
@@ -57,6 +60,9 @@ task_budget_tokens = 20000
 # Give the agent a short keelyard brief at session start and again after context compaction.
 brief = true
 brief_tokens = 600
+# Put the full text of small project files into the brief (stable, cache-friendly prefix), up to this many
+# tokens; the agent then needs no read calls. 0 = off. The lean preset sets 1500.
+inline_files_tokens = 0
 # Add the most relevant past-session snippets to each prompt (0 hits = nothing added).
 recall = true
 recall_tokens = 250

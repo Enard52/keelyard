@@ -53,3 +53,13 @@ def test_max_quality_opencode_adds_mcp(project):
 def test_unknown_preset(project):
     with pytest.raises(InstallError):
         install("opencode", project, preset="turbo")
+
+
+def test_lean_sets_keelyard_config(project):
+    from keelyard import config
+
+    config.init(project)
+    install("opencode", project, preset="lean")
+    c = config.load(project)
+    assert c.section("brain")["inline_files_tokens"] == 1500
+    assert c.section("proof")["auto_test_after_edit"] is True
