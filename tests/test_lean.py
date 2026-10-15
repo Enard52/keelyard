@@ -105,3 +105,19 @@ def test_auto_test_after_edit_appends_result_and_proves(project):
     text = out["hookSpecificOutput"]["updatedToolOutput"]["stdout"]
     assert text.startswith("Edit applied.") and "1 passed" in text and len(text) < 800
     assert hooks.handle("Stop", ev("Stop"), cfg) is None
+
+
+def test_session_start_runs_tests_into_brief_when_auto(project):
+    import sys
+
+    from keelyard import config
+
+    config.init(project)
+    p = project / ".keelyard" / "config.toml"
+    _set(p, "auto_test_after_edit", "true")
+    _set(p, "test_cmd", f'"{sys.executable} -m pytest -q"'.replace("\\", "/"))
+    cfg = config.load(project)
+    out = hooks.handle("SessionStart", ev("SessionStart", source="startup", lean=True), cfg)
+    text = out["hookSpecificOutput"]["additionalContext"]
+    assert "before any edit" in text and "1 passed" in text
+    assert Proof(cfg, "s1").load().test_runs[0]["phase"] == "before"

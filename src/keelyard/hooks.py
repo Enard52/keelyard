@@ -79,6 +79,18 @@ def _filter_bash(cfg: config.Config, tin: dict, resp) -> dict | None:
         "stdout": small + note, "stderr": "", "interrupted": bool(resp.get("interrupted")), "isImage": False}}}
 
 
+def _baseline_tests(cfg: config.Config, sid: str) -> str:
+    """The test result before any edit, in the brief: the agent needs no 'before' run of its own."""
+    from .filters import filter_output
+
+    try:
+        run = Proof(cfg, sid).run_tests("before")
+    except Exception as e:  # noqa: BLE001
+        return f"[keelyard: tests not run: {e}]"
+    small = filter_output(run["cmd"], run["tail"])[-1500:].strip()
+    return f"Tests before any edit (keelyard ran `{run['cmd']}`, exit {run['exit']}; no need to run them again):\n{small}"
+
+
 def _auto_test(cfg: config.Config, sid: str, resp) -> dict | None:
     """Run the tests after an edit and hand the agent a compact result with the edit's own output."""
     from .filters import filter_output
@@ -130,7 +142,10 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
 
             task = Proof(cfg, sid).load().task
             head = "keelyard brief (re-sent after compaction)" if payload.get("source") == "compact" else "keelyard brief"
-            return _ctx("SessionStart", f"[{head}]\n" + brief(cfg, sid, query=task, lean=bool(payload.get("lean"))))
+            text = f"[{head}]\n" + brief(cfg, sid, query=task, lean=bool(payload.get("lean")))
+            if payload.get("source") == "startup" and cfg.section("proof").get("auto_test_after_edit"):
+                text += "\n\n" + _baseline_tests(cfg, sid)
+            return _ctx("SessionStart", text)
         return None
 
     if event == "UserPromptSubmit":
