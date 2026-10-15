@@ -23,4 +23,4 @@ Trade-offs of lean: the agent has no web access, no subagents and no glob/grep t
 file map in keelyard's brief instead). For Codex, the cheapest effective setting is in your user config, which
 keelyard does not touch: `model_reasoning_effort = "low"` for routine fixes.
 
-Measured effect: see [BENCHMARKS](../../BENCHMARKS.md#presets-measured-on-opencode-2).
+Measured effect: see [BENCHMARKS](../BENCHMARKS.md#presets-measured-on-opencode-2).
