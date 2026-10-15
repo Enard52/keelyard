@@ -24,3 +24,21 @@ but the shell-output filter did not fire because in code mode the agent never ca
 The 56k→6k savings measured earlier apply to noisy command output, which this task did not produce.
 Rewind was verified on the same project: `rewind to 1` → 3 failed; `rewind to 2` → 66 passed
 ([screenshot](docs/img/real/rewind.svg)). Status/proof: [screenshot](docs/img/real/status.svg).
+
+### After the lean-mode fix (commit f93dbaa), same PC, same free model, n=1 per row
+
+keelyard no longer puts an MCP tool catalog into OpenCode's context, counts the agent's own shell test runs as
+proof, and filters shell output. Data: `bench/real/opencode_bigpickle_lean.json`, `opencode_bigpickle_noisy.json`.
+
+| task | run | tests after | model calls | input total (incl. cache) | input uncached | tool output chars |
+|---|---|---|---|---|---|---|
+| shop (66 tests) | baseline | 66/66 | 5 | 44,075 | 6,571 | 14,502 |
+| shop (66 tests) | keelyard before fix | 66/66 | 6 | 82,198 | 13,654 | 26,746 |
+| shop (66 tests) | **keelyard lean** | 66/66, proven | 5 | **37,493 (−15%)** | 4,021 | 2,806 (−81%) |
+| noisy shop (1,566 tests, `pytest -v`) | baseline | 1566/1566 | 6 | 87,168 | 18,496 | 54,407 |
+| noisy shop (1,566 tests, `pytest -v`) | **keelyard lean** | 1566/1566, proven | 5 | **37,257 (2.3× fewer)** | 7,049 (2.6× fewer) | 2,854 (19× fewer) |
+
+What limits the ratio: OpenCode's own system prompt and tool definitions are resent on every model call
+(about 6k tokens per call here), so five calls cost ~30k tokens before any project content. keelyard cuts
+what it controls (tool output 19×, e.g. `pytest -v` 12,849 → 279 tokens) but cannot reach 10× on whole-session
+tokens for short tasks. The gap grows with longer sessions and noisier output.

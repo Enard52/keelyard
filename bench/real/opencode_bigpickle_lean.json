@@ -1,0 +1,22 @@
+{
+  "baseline": {
+    "model_calls": 5,
+    "input_uncached": 6571,
+    "input_cache_read": 37504,
+    "input_total": 44075,
+    "output": 618,
+    "reasoning": 258,
+    "cost_usd": 0,
+    "tool_result_chars": 14502
+  },
+  "keelyard": {
+    "model_calls": 5,
+    "input_uncached": 4021,
+    "input_cache_read": 33472,
+    "input_total": 37493,
+    "output": 596,
+    "reasoning": 67,
+    "cost_usd": 0,
+    "tool_result_chars": 2806
+  }
+}

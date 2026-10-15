@@ -45,7 +45,7 @@ keelyard init            # finds Claude Code, Codex and OpenCode and wires each 
 Then use your agent as usual. `keelyard status` shows where things stand, and `keelyard doctor` checks
 the setup. `keelyard selftest` runs a scripted agent through the whole flow in a temporary folder.
 
-> **Real run (OpenCode 2, Windows, free model, n=1):** both runs fixed all tests; keelyard added a verified proof and working rewind but used 82k vs 45k input tokens on this small task. Details in [BENCHMARKS.md](BENCHMARKS.md#real-agent-run-opencode-2022-on-windows-11-oct-15-2026).
+> **Real runs (OpenCode 2, Windows, free model, n=1):** total session tokens −15% on a small 66-test task and 2.3× fewer on a noisy 1,566-test task (tool output 19× smaller), with all tests passing and proof recorded. Details in [BENCHMARKS.md](BENCHMARKS.md#after-the-lean-mode-fix-commit-f93dbaa-same-pc-same-free-model-n1-per-row).
 
 ## What it does
 
