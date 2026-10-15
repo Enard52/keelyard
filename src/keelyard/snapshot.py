@@ -40,7 +40,7 @@ class Step:
 
 # keelyard's own wiring files are not your work: rewinding must never remove or revert them.
 EXCLUDE = (".keelyard/\n.git/\nnode_modules/\n.venv/\n__pycache__/\n"
-           ".claude/skills/keelyard/\n.claude/commands/keelyard/\n.opencode/plugin/keelyard.js\n"
+           ".claude/skills/keelyard/\n.claude/commands/keelyard/\n.opencode/plugin/keelyard.js\n.opencode/plugins/keelyard.js\n"
            ".opencode/command/keelyard-*.md\n")
 
 

@@ -52,5 +52,6 @@ Past-session recall reads keelyard's memory index. The Stop hook refreshes it at
 | budget hint | from `transcript_path` size | same | **gap**: no transcript path; set nothing, it stays off |
 
 The Claude Code column is covered by the test suite at the hook level. The Codex and OpenCode columns follow
-their documented hook and plugin APIs (`@opencode-ai/plugin` 1.19), but have **not yet been run against the
-real agents**.
+their documented hook and plugin APIs. The OpenCode plugin is one file that supports both plugin APIs
+(`@opencode/plugin` 2.x `setup(ctx)` and `@opencode-ai/plugin` 1.x `server()`); a test drives both with a fake
+keelyard. Results from real sessions are in [Benchmarks](../BENCHMARKS.md) once measured.

@@ -54,7 +54,7 @@ def test_global_install_wires_all_agents_keeps_user_settings_and_backs_up(home):
     assert "Stop" in json.loads((home / ".codex" / "hooks.json").read_text())["hooks"]
     oc = home / ".config" / "opencode"
     assert json.loads((oc / "opencode.json").read_text())["mcp"]["keelyard"]["type"] == "local"
-    assert (oc / "plugin" / "keelyard.js").exists() and "keelyard" in (oc / "AGENTS.md").read_text()
+    assert (oc / "plugins" / "keelyard.js").exists() and "keelyard" in (oc / "AGENTS.md").read_text()
     assert json.loads((home / ".claude" / "settings.json.keelyard-backup").read_text())["theme"] == "dark"
     assert (home / ".codex" / "config.toml.keelyard-backup").read_text() == 'model = "o4"\n'
 
@@ -68,7 +68,7 @@ def test_global_uninstall_removes_only_keelyard(home):
     assert (home / ".codex" / "config.toml").read_text().strip() == 'model = "o4"'
     assert "keelyard" not in (home / ".claude" / "settings.json").read_text()
     assert "keelyard" not in json.dumps(json.loads((home / ".claude.json").read_text()))
-    assert not (home / ".config" / "opencode" / "plugin" / "keelyard.js").exists()
+    assert not (home / ".config" / "opencode" / "plugins" / "keelyard.js").exists()
     md = home / ".claude" / "CLAUDE.md"
     assert not md.exists() or "keelyard" not in md.read_text()
 

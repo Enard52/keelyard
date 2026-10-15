@@ -201,7 +201,7 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
 
     if event == "PostToolUse":
         out = None
-        if tool == "Bash" and sav.get("filter_bash", True):
+        if tool in SHELL_TOOLS and sav.get("filter_bash", True):
             out = _filter_bash(cfg, tin, payload.get("tool_response"))
         if tool in EDIT_TOOLS_READ:
             f = _file_arg(tin)

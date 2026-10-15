@@ -22,5 +22,5 @@ def test_install_codex_and_opencode(project):
     h = json.loads((project / ".codex" / "hooks.json").read_text())
     assert "Stop" in h["hooks"] and "PostToolUse" in h["hooks"]
     install("opencode", project)
-    assert "session.idle" in (project / ".opencode" / "plugin" / "keelyard.js").read_text()
+    assert "session.idle" in (project / ".opencode" / "plugins" / "keelyard.js").read_text()
     assert json.loads((project / "opencode.json").read_text())["mcp"]["keelyard"]["type"] == "local"

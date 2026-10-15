@@ -2,6 +2,11 @@
 
 ## 0.1.0 (unreleased)
 
+### OpenCode 2
+- The OpenCode plugin supports OpenCode 2.x (`setup(ctx)`: context, compaction, prompt, tool and event hooks, MCP via
+  `ctx.mcp.transform`) and 1.x (`server()`) from one file, now installed to `.opencode/plugins/keelyard.js`
+- Fix: shell output from OpenCode (`bash`) and Codex (`shell`) was never filtered; only Claude's `Bash` was
+
 ### Cooperative swarm
 - `keelyard.coop`: planner -> workers -> verifier with a shared blackboard, a optional peer critic, voting, cheapest-capable
   model routing (`[swarm].ladder`), and hard token budgets (`budget_tokens`, `task_budget_tokens`) enforced by

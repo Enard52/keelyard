@@ -117,7 +117,7 @@ def detect() -> dict[str, str]:
 
 def installed(agent: str, root: Path) -> bool:
     if agent == "opencode":
-        return (root / ".opencode" / "plugin" / "keelyard.js").exists()
+        return any((root / ".opencode" / d / "keelyard.js").exists() for d in ("plugins", "plugin"))
     path = root / FILES[agent][0][0]
     try:
         text = path.read_text()
@@ -232,12 +232,15 @@ def install(agent: str, root: Path) -> list[str]:
         done.append(".codex/hooks.json (hooks; approve them in Codex with /hooks)")
         done.append(f'add to ~/.codex/config.toml:\n[mcp_servers.keelyard]\ncommand = {json.dumps(_exe_path())}\nargs = ["mcp"]')
     elif agent == "opencode":
-        dest = root / ".opencode" / "plugin" / "keelyard.js"
+        legacy = root / ".opencode" / "plugin" / "keelyard.js"  # keelyard <= 0.1 put it here; OpenCode 2 loads both dirs
+        if legacy.exists():
+            legacy.unlink()
+        dest = root / ".opencode" / "plugins" / "keelyard.js"
         dest.parent.mkdir(parents=True, exist_ok=True)
         js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text()
         dest.write_text(js.replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(_exe_path())};", 1))
         _merge_json(root / "opencode.json", "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
-        done += [".opencode/plugin/keelyard.js (events)", "opencode.json (MCP server)"]
+        done += [".opencode/plugins/keelyard.js (events)", "opencode.json (MCP server)"]
     return done + install_guides(agent, root)
 
 
@@ -264,10 +267,11 @@ def uninstall(agent: str, root: Path) -> list[str]:
             data.pop(key)
         _write_json(path, data)
         done.append(rel)
-    plugin = root / ".opencode" / "plugin" / "keelyard.js"
-    if agent == "opencode" and plugin.exists():
-        plugin.unlink()
-        done.append(".opencode/plugin/keelyard.js")
+    for d in ("plugins", "plugin"):
+        plugin = root / ".opencode" / d / "keelyard.js"
+        if agent == "opencode" and plugin.exists():
+            plugin.unlink()
+            done.append(f".opencode/{d}/keelyard.js")
     return done + uninstall_guides(agent, root)
 
 
@@ -283,7 +287,7 @@ def global_paths(home: Path | None = None) -> dict[str, Path]:
             "claude_md": h / ".claude" / "CLAUDE.md", "claude_dir": h / ".claude",
             "codex_toml": h / ".codex" / "config.toml", "codex_hooks": h / ".codex" / "hooks.json",
             "codex_md": h / ".codex" / "AGENTS.md",
-            "opencode_json": oc / "opencode.json", "opencode_plugin": oc / "plugin" / "keelyard.js",
+            "opencode_json": oc / "opencode.json", "opencode_plugin": oc / "plugins" / "keelyard.js",
             "opencode_md": oc / "AGENTS.md", "opencode_dir": oc}
 
 
@@ -405,9 +409,10 @@ def uninstall_global(agent: str, home: Path | None = None) -> list[str]:
     else:
         if _drop_key(p["opencode_json"], "mcp"):
             done.append(str(p["opencode_json"]))
-        if p["opencode_plugin"].exists():
-            p["opencode_plugin"].unlink()
-            done.append(str(p["opencode_plugin"]))
+        for f in (p["opencode_plugin"], p["opencode_dir"] / "plugin" / "keelyard.js"):
+            if f.exists():
+                f.unlink()
+                done.append(str(f))
         if _set_block(p["opencode_md"], None):
             done.append(str(p["opencode_md"]))
         for name in WORKFLOWS:

@@ -9,7 +9,7 @@ MCP, and both return JSON.
 |---|---|---|---|
 | Claude Code | `.claude/settings.json` | `.mcp.json` | `CLAUDE.md` section, `.claude/skills/keelyard/SKILL.md`, `/keelyard:status`, `/keelyard:prove`, `/keelyard:undo` |
 | Codex | `.codex/hooks.json` | snippet for `~/.codex/config.toml` | `AGENTS.md` section |
-| OpenCode | `.opencode/plugin/keelyard.js` | `opencode.json` | `AGENTS.md` section |
+| OpenCode | `.opencode/plugins/keelyard.js` | `opencode.json` | `AGENTS.md` section |
 
 The instruction sections sit between `<!-- keelyard:start -->` and `<!-- keelyard:end -->`. `init` replaces only
 that block, and `uninstall` removes only that block. The rest of the file stays as you wrote it.
