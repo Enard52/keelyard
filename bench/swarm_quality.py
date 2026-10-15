@@ -62,23 +62,27 @@ def make_repo(d: Path) -> None:
         (d / f"test_{name}").write_text(test)
 
 
-def write_cfg(d: Path, base_url: str, model: str) -> None:
+def write_cfg(d: Path, base_url: str, model: str, key_env: str = "", strong: str = "") -> None:
     (d / ".keelyard").mkdir(exist_ok=True)
     py = Path(sys.executable).as_posix()
     (d / ".keelyard" / "config.toml").write_text(
         f'[proof]\ntest_cmd = "{py} -m pytest -q -p no:cacheprovider"\n'
         f'[swarm]\nconcurrency = 2\nworkers = 2\nescalate_model = ""\n'
-        f'[models.cheap]\nprovider = "openai"\nbase_url = "{base_url}"\nmodel = "{model}"\nmax_tokens = 600\n')
+        + ('ladder = ["cheap", "strong"]\n' if strong else "")
+        + f'[models.cheap]\nprovider = "openai"\nbase_url = "{base_url}"\nmodel = "{model}"\nmax_tokens = 1500\n'
+          f'api_key_env = "{key_env}"\n'
+        + (f'[models.strong]\nprovider = "openai"\nbase_url = "{base_url}"\nmodel = "{strong}"\nmax_tokens = 1500\n'
+           f'api_key_env = "{key_env}"\n' if strong else ""))
 
 
 async def run_mode(cfg, mode: str) -> dict:
-    if mode == "single":
-        sw = Swarm(cfg, best_of=1, retries=0, test_patches=False)
+    if mode in ("single", "strong-single"):  # strong-single: one call per task to the strong model
+        sw = Swarm(cfg, "strong" if mode == "strong-single" else None, best_of=1, retries=0, test_patches=False)
         drafts = [Task("draft_edit", g, [f]) for g, f, _ in DRAFTS]
         asks = [Task("ask", q, [f]) for q, f, _, _ in ASKS]
     else:
-        if mode == "pipeline":
-            sw = Swarm(cfg, best_of=3, retries=1, test_patches=True)
+        if mode in ("pipeline", "strong-pipeline"):
+            sw = Swarm(cfg, "strong" if mode == "strong-pipeline" else None, best_of=3, retries=1, test_patches=True)
         elif mode == "best-local":  # stand-in for "one strong agent": the most compute we give one model
             sw = Swarm(cfg, best_of=5, retries=2, test_patches=True)
         else:
@@ -119,21 +123,27 @@ def main() -> None:
     ap.add_argument("--base-url", default="http://localhost:11434/v1")
     ap.add_argument("--model", default="qwen-coder-1.5b")
     ap.add_argument("--runs", type=int, default=2)
+    ap.add_argument("--api-key-env", default="", help="env var holding the API key (never printed)")
+    ap.add_argument("--strong-model", default="", help="enables strong-single, strong-pipeline and the cheap->strong ladder")
     ap.add_argument("--modes", default="single,pipeline,best-local,coop,coop-nocritic")
     ap.add_argument("--out", type=Path, default=ROOT / "bench" / "swarm_quality.json")
+    ap.add_argument("--free-only", action="store_true", help="refuse any OpenRouter model id not ending in :free")
     a = ap.parse_args()
+    if a.free_only and not all(m.endswith(":free") for m in (a.model, a.strong_model) if m):
+        raise SystemExit("--free-only: every model id must end in :free")
     rows = []
     for run in range(a.runs):
         for mode in a.modes.split(","):
             with tempfile.TemporaryDirectory() as tmp:
                 d = Path(tmp)
                 make_repo(d)
-                write_cfg(d, a.base_url, a.model)
+                write_cfg(d, a.base_url, a.model, a.api_key_env, a.strong_model)
                 row = asyncio.run(run_mode(config.load(d), mode))
                 row["run"] = run + 1
                 rows.append(row)
                 print(json.dumps(row))
-    a.out.write_text(json.dumps({"model": a.model, "drafts": len(DRAFTS), "asks": len(ASKS), "rows": rows}, indent=2))
+    meta = {"model": a.model, "strong_model": a.strong_model or None, "drafts": len(DRAFTS), "asks": len(ASKS)}
+    a.out.write_text(json.dumps({**meta, "rows": rows}, indent=2))
 
 
 if __name__ == "__main__":

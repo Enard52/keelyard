@@ -133,6 +133,19 @@ Same 10 tasks (5 bug fixes, 5 questions), qwen-coder-1.5b on Ollama, 2 runs each
 - `coop-nocritic` (blackboard, voting, budget) costs about the same as the pipeline per correct answer.
   With one model the ladder had one step, so routing was not exercised here (it is covered by tests).
 
+### Free OpenRouter helper (one run)
+
+Same 10 tasks with `cohere/north-mini-code:free` as the helper, cost $0:
+
+| mode | correct of 10 | tokens | tokens per correct |
+|---|---|---|---|
+| single | 6 | 13,699 | 2,283 |
+| pipeline | 10 | 8,504 | 850 |
+| coop-nocritic | 10 | 12,915 | 1,292 |
+
+One run only: the free tier allows 50 requests a day and the limit was reached during the strong-model modes
+(`nvidia/nemotron-3-ultra-550b-a55b:free`), so there is no strong-model comparison yet. `bench/swarm_openrouter_free.json`.
+
 ## keelyard's own overhead
 
 `python bench/overhead.py` counts what keelyard adds to every session (characters / 4 of compact JSON or text):

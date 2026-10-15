@@ -1,0 +1,57 @@
+{
+  "model": "cohere/north-mini-code:free",
+  "strong_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "drafts": 5,
+  "asks": 5,
+  "note": "One run only. OpenRouter's free tier allows 50 requests per day; the limit was hit during the strong-model modes, so those rows were discarded (calls failed with 429, not wrong answers).",
+  "rows": [
+    {
+      "mode": "single",
+      "correct": 6,
+      "tokens": 13699,
+      "tokens_per_correct": 2283,
+      "drafts_correct": 1,
+      "drafts_verified": 1,
+      "drafts_verified_but_wrong": 0,
+      "asks_correct": 5,
+      "asks_verified": 5,
+      "tokens_in": 10171,
+      "tokens_out": 3528,
+      "model_calls": 10,
+      "seconds": 8.4,
+      "run": 1
+    },
+    {
+      "mode": "pipeline",
+      "correct": 10,
+      "tokens": 8504,
+      "tokens_per_correct": 850,
+      "drafts_correct": 5,
+      "drafts_verified": 5,
+      "drafts_verified_but_wrong": 0,
+      "asks_correct": 5,
+      "asks_verified": 5,
+      "tokens_in": 3981,
+      "tokens_out": 4523,
+      "model_calls": 30,
+      "seconds": 7.4,
+      "run": 1
+    },
+    {
+      "mode": "coop-nocritic",
+      "correct": 10,
+      "tokens": 12915,
+      "tokens_per_correct": 1292,
+      "drafts_correct": 5,
+      "drafts_verified": 5,
+      "drafts_verified_but_wrong": 0,
+      "asks_correct": 5,
+      "asks_verified": 5,
+      "tokens_in": 5208,
+      "tokens_out": 7707,
+      "model_calls": 30,
+      "seconds": 11.3,
+      "run": 1
+    }
+  ]
+}

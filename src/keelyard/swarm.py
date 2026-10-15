@@ -97,7 +97,8 @@ async def complete(client: httpx.AsyncClient, model: dict[str, Any], system: str
     return j["choices"][0]["message"]["content"] or "", u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
 
 
-async def _with_retry(fn, attempts: int = 4):
+async def _with_retry(fn, attempts: int | None = None):
+    attempts = attempts or int(os.environ.get("KEELYARD_RETRIES", "4"))  # free tiers rate-limit hard
     for i in range(attempts):
         try:
             return await fn()
