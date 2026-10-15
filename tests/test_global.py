@@ -31,7 +31,8 @@ def ky(*args, cwd=None, inp=None):
                           env=env, timeout=120)
 
 
-def test_global_install_wires_all_agents_keeps_user_settings_and_backs_up(home):
+def test_global_install_wires_all_agents_keeps_user_settings_and_backs_up(home, monkeypatch):
+    monkeypatch.setenv("KEELYARD_OPENCODE_MCP", "1")
     (home / ".claude").mkdir()
     (home / ".claude" / "settings.json").write_text(json.dumps({"theme": "dark", "hooks": {"Stop": [
         {"hooks": [{"type": "command", "command": "say done"}]}]}}))

@@ -75,7 +75,7 @@ def test_plugin_works_under_opencode_2_and_1(tmp_path):
     fake.write_text(FAKE.replace("#!/usr/bin/env python3", f"#!{sys.executable}"))
     fake.chmod(0o755)
     js = PLUGIN.read_text().replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(str(fake))};", 1)
-    (tmp_path / "keelyard.mjs").write_text(js)
+    (tmp_path / "keelyard.mjs").write_text(js.replace("const MCP = false;", "const MCP = true;"))
     (tmp_path / "driver.mjs").write_text(DRIVER)
     r = subprocess.run(["node", "driver.mjs"], cwd=tmp_path, capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr

@@ -303,6 +303,7 @@ def test_toml_snippet_is_printed_verbatim(project):
 
 
 def test_mcp_config_uses_the_raw_executable_path(project, monkeypatch, tmp_path):
+    monkeypatch.setenv("KEELYARD_OPENCODE_MCP", "1")
     from keelyard.adapters import install as inst
 
     exe = str(tmp_path / "my tools" / "keelyard")

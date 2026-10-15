@@ -112,10 +112,15 @@ def tracked_files(root: Path) -> list[str]:
     return [f for f in files if not f.startswith(".keelyard/") and not f.endswith("/")]
 
 
+AGENT_FILES = {".opencode", ".claude", ".codex", ".keelyard", "AGENTS.md", "CLAUDE.md", "opencode.json", ".mcp.json"}
+
+
 def project_map(root: Path, max_dirs: int = 60) -> str:
     dirs: dict[str, list[tuple[str, int]]] = OrderedDict()
     total = 0
     for rel in sorted(tracked_files(root)):
+        if rel.split("/")[0] in AGENT_FILES:
+            continue
         p = root / rel
         try:
             size = p.stat().st_size

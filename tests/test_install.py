@@ -17,7 +17,8 @@ def test_install_claude_idempotent(project):
     assert json.loads((project / ".mcp.json").read_text())["mcpServers"]["keelyard"]["args"] == ["mcp"]
 
 
-def test_install_codex_and_opencode(project):
+def test_install_codex_and_opencode(project, monkeypatch):
+    monkeypatch.setenv("KEELYARD_OPENCODE_MCP", "1")
     install("codex", project)
     h = json.loads((project / ".codex" / "hooks.json").read_text())
     assert "Stop" in h["hooks"] and "PostToolUse" in h["hooks"]

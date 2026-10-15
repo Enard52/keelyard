@@ -20,6 +20,8 @@ test_cmd = ""
 app_url = ""
 # Stop the gate from looping forever: give up after this many blocks per session.
 max_blocks = 3
+# No checklist written? A passing test run after the last edit (also one run in the agent's shell) proves the task.
+auto_requirements = true
 
 [rewind]
 enabled = true

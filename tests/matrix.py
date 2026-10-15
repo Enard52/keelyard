@@ -71,7 +71,7 @@ CASES: list[Case] = [
     Case("setup", "install codex", ["install", "codex", "--json"],
          check=lambda d, p: (p / ".codex/hooks.json").exists() and "keelyard:start" in (p / "AGENTS.md").read_text()),
     Case("setup", "install opencode", ["install", "opencode", "--json"],
-         check=lambda d, p: (p / ".opencode/plugins/keelyard.js").exists() and "keelyard" in (p / "opencode.json").read_text()),
+         check=lambda d, p: (p / ".opencode/plugins/keelyard.js").exists() and "const MCP" in (p / ".opencode/plugins/keelyard.js").read_text()),
     Case("setup", "install unknown agent is a usage error", ["install", "cursor", "--json"], exit=2),
     Case("setup", "doctor", ["doctor", "--json"], check=lambda d, p: {c["check"] for c in d["checks"]} >= {"python", "git", "claude"}),
     Case("setup", "status", ["status", "--json"], check=lambda d, p: d["agents"]["claude"] and d["steps"] >= 1),

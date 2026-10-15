@@ -112,7 +112,7 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
 
             task = Proof(cfg, sid).load().task
             head = "keelyard brief (re-sent after compaction)" if payload.get("source") == "compact" else "keelyard brief"
-            return _ctx("SessionStart", f"[{head}]\n" + brief(cfg, sid, query=task))
+            return _ctx("SessionStart", f"[{head}]\n" + brief(cfg, sid, query=task, lean=bool(payload.get("lean"))))
         return None
 
     if event == "UserPromptSubmit":
@@ -201,6 +201,15 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
 
     if event == "PostToolUse":
         out = None
+        resp = payload.get("tool_response")
+        if tool in SHELL_TOOLS and isinstance(resp, dict) and isinstance(resp.get("stdout"), str):
+            cmd = tin.get("command") or tin.get("cmd") or ""
+            cmd = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
+            code = next((resp[k] for k in ("exit_code", "exitCode", "exit") if isinstance(resp.get(k), int)), None)
+            try:
+                Proof(cfg, sid).record_shell_run(cmd, resp["stdout"] + "\n" + (resp.get("stderr") or ""), code)
+            except Exception:  # noqa: BLE001 - proof capture must never break the agent
+                pass
         if tool in SHELL_TOOLS and sav.get("filter_bash", True):
             out = _filter_bash(cfg, tin, payload.get("tool_response"))
         if tool in EDIT_TOOLS_READ:
@@ -224,6 +233,8 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
             _ingest_memory(cfg)
         pf = Proof(cfg, sid)
         gaps = pf.missing()
+        if not gaps:
+            pf.auto_complete()
         report = render(pf)
         opts = cfg.section("proof")
         b = pf.load()
@@ -240,8 +251,8 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
         pf.save(b)
         reason = ("keelyard proof gate: you changed files but have not proven the work yet.\n- "
                   + "\n- ".join(gaps)
-                  + "\nUse the keelyard MCP tools (proof_requirements, proof_check, proof_run_tests, proof_screenshot), "
-                    "or the `keelyard proof` CLI, then finish.")
+                  + "\nRun the project's tests in your shell (that counts as proof), or use the keelyard proof tools / "
+                    "`keelyard proof` CLI, then finish.")
         return {"decision": "block", "reason": reason}
     return None
 

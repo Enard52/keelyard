@@ -147,6 +147,18 @@ def _command(name: str) -> str:
     return f"---\ndescription: keelyard workflow: {WORKFLOWS[name]}\n---\n{workflow_text(name)}"
 
 
+def opencode_mcp() -> bool:
+    """OpenCode 2 puts every MCP tool in a code-mode catalog in context, which costs more than it saves on most
+    tasks. keelyard works without it there (proof from shell test runs); KEELYARD_OPENCODE_MCP=1 adds the server."""
+    return os.environ.get("KEELYARD_OPENCODE_MCP", "") in ("1", "true", "yes")
+
+
+def _plugin_js() -> str:
+    js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text()
+    js = js.replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(_exe_path())};", 1)
+    return js.replace("const MCP = false;", f"const MCP = {'true' if opencode_mcp() else 'false'};", 1)
+
+
 def _guide(name: str) -> str:
     return resources.files("keelyard.adapters").joinpath("guides", name).read_text(encoding="utf-8")
 
@@ -173,7 +185,8 @@ def _set_block(path: Path, body: str | None) -> bool:
 def install_guides(agent: str, root: Path) -> list[str]:
     """Teach the agent the workflow: an instructions block, plus a skill and slash commands for Claude Code."""
     done = []
-    _set_block(root / GUIDE_FILE[agent], _guide("agents_block.md"))
+    lean = agent == "opencode" and not opencode_mcp() and not installed("codex", root)
+    _set_block(root / GUIDE_FILE[agent], _guide("agents_block_lean.md" if lean else "agents_block.md"))
     done.append(f"{GUIDE_FILE[agent]} (keelyard section)")
     if agent == "claude":
         skill = root / ".claude" / "skills" / "keelyard" / "SKILL.md"
@@ -237,10 +250,11 @@ def install(agent: str, root: Path) -> list[str]:
             legacy.unlink()
         dest = root / ".opencode" / "plugins" / "keelyard.js"
         dest.parent.mkdir(parents=True, exist_ok=True)
-        js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text()
-        dest.write_text(js.replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(_exe_path())};", 1))
-        _merge_json(root / "opencode.json", "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
-        done += [".opencode/plugins/keelyard.js (events)", "opencode.json (MCP server)"]
+        dest.write_text(_plugin_js())
+        done.append(".opencode/plugins/keelyard.js (events)")
+        if opencode_mcp():
+            _merge_json(root / "opencode.json", "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
+            done.append("opencode.json (MCP server)")
     return done + install_guides(agent, root)
 
 
@@ -370,11 +384,11 @@ def install_global(agent: str, home: Path | None = None) -> list[str]:
     else:
         for k in ("opencode_json", "opencode_md"):
             _backup(p[k])
-        js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text()
         p["opencode_plugin"].parent.mkdir(parents=True, exist_ok=True)
-        p["opencode_plugin"].write_text(js.replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(_exe_path())};", 1))
-        _merge_json(p["opencode_json"], "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
-        _set_block(p["opencode_md"], rules)
+        p["opencode_plugin"].write_text(_plugin_js())
+        if opencode_mcp():
+            _merge_json(p["opencode_json"], "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
+        _set_block(p["opencode_md"], rules if opencode_mcp() else _guide("agents_block_lean.md"))
         cmds = p["opencode_dir"] / "command"
         cmds.mkdir(parents=True, exist_ok=True)
         for name in WORKFLOWS:

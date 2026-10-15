@@ -4,6 +4,7 @@
 import { spawn } from "node:child_process";
 
 const KEELYARD = "keelyard"; // replaced with the absolute path by `keelyard install opencode`
+const MCP = false; // true when installed with KEELYARD_OPENCODE_MCP=1: OpenCode 2's tool catalog costs tokens every turn
 
 function run(event, payload) {
   return new Promise((resolve) => {
@@ -34,13 +35,13 @@ function core(directory) {
   const context = (res) => res?.hookSpecificOutput?.additionalContext;
   return {
     async system(sid) {
-      if (!briefs.has(sid)) briefs.set(sid, context(await hook("SessionStart", { session_id: sid, source: "startup" })) || "");
+      if (!briefs.has(sid)) briefs.set(sid, context(await hook("SessionStart", { session_id: sid, source: "startup", lean: !MCP })) || "");
       const parts = briefs.get(sid) ? [briefs.get(sid)] : [];
       while (notes.length) parts.push(notes.shift());
       return parts;
     },
     async compact(sid) {
-      return context(await hook("SessionStart", { session_id: sid, source: "compact" }));
+      return context(await hook("SessionStart", { session_id: sid, source: "compact", lean: !MCP }));
     },
     async prompt(sid, text) {
       if (!text) return;
@@ -83,7 +84,7 @@ export default {
   // OpenCode 2.x
   async setup(ctx) {
     const k = core(ctx.location?.directory || process.cwd());
-    await ctx.mcp.transform((editor) => {
+    if (MCP) await ctx.mcp.transform((editor) => {
       if (!editor.get("keelyard")) editor.set("keelyard", { type: "local", command: [KEELYARD, "mcp"] });
     });
     await ctx.session.hook("context", async (event) => {

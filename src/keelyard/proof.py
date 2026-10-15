@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -16,6 +17,30 @@ from .redact import redact
 from .snapshot import Shadow
 
 TAIL = 4000
+
+TEST_CMD = re.compile(r"(?<![\w-])(pytest|py\.test|unittest|tox|nox|(npm|pnpm|yarn|bun)( run)? test|jest|vitest|mocha|"
+                      r"go test|cargo test|dotnet test|mvn test|gradle\w* test|make test|rspec|phpunit)(?![\w-])")
+_FAIL = re.compile(r"\b[1-9]\d* (failed|errors?|failures?)\b|^(FAIL|FAILED|--- FAIL)\b|panicked at|test result: FAILED",
+                   re.M | re.I)
+_PASS = re.compile(r"\b\d+ passed\b|^ok\b|^OK\b|test result: ok|^PASS\b|\b\d+ tests? passed", re.M)
+
+
+def is_test_cmd(cmd: str) -> bool:
+    return bool(TEST_CMD.search(cmd or ""))
+
+
+def parse_test_exit(output: str) -> int | None:
+    """Exit status of a test run judged from its output: 0 passed, 1 failed, None unknown."""
+    if _FAIL.search(output or ""):
+        return 1
+    if _PASS.search(output or ""):
+        return 0
+    return None
+
+
+def summary_line(output: str) -> str:
+    lines = [ln.strip(" =") for ln in (output or "").splitlines() if _PASS.search(ln) or _FAIL.search(ln)]
+    return lines[-1][:160] if lines else ""
 
 
 def detect_test_cmd(root: Path) -> str:
@@ -128,6 +153,36 @@ class Proof:
         self.save(b)
         return run
 
+    def record_shell_run(self, cmd: str, output: str, exit_code: int | None = None) -> dict | None:
+        """A test command the agent ran in its own shell counts as a test run: no extra tool call needed."""
+        if not is_test_cmd(cmd):
+            return None
+        code = exit_code if isinstance(exit_code, int) else parse_test_exit(output)
+        if code is None:
+            return None
+        run = {"phase": "after" if self.last_edit_ts() is not None else "before", "cmd": cmd, "exit": code,
+               "ts": time.time(), "seconds": 0, "tail": redact((output or "")[-TAIL:]), "source": "shell"}
+        b = self.load()
+        b.test_runs.append(run)
+        self.save(b)
+        return run
+
+    def auto_complete(self) -> bool:
+        """With no written checklist, a passing test run after the last edit proves the task itself."""
+        b = self.load()
+        if b.requirements or not self.opts.get("auto_requirements", True):
+            return False
+        last = self.last_edit_ts()
+        after = [t for t in b.test_runs if t["phase"] == "after" and (last is None or t["ts"] >= last)]
+        if not after or after[-1]["exit"] != 0:
+            return False
+        t = after[-1]
+        b.requirements.append({"id": 1, "text": (b.task or "the task").strip().strip('"')[:200], "done": True,
+                               "evidence": f"`{t['cmd']}` exit {t['exit']}: {summary_line(t['tail'])}".strip(),
+                               "ts": time.time(), "auto": True})
+        self.save(b)
+        return True
+
     def screenshot(self, url: str | None = None) -> dict:
         url = url or self.opts.get("app_url")
         if not url:
@@ -157,7 +212,9 @@ class Proof:
             # was written down still has to be ticked off
             return [f"Requirement #{r['id']} not verified: {r['text']}" for r in b.requirements if not r["done"]]
         gaps = []
-        if not b.requirements:
+        after = [t for t in b.test_runs if t["phase"] == "after" and t["ts"] >= last_edit]
+        auto_ok = self.opts.get("auto_requirements", True) and after and after[-1]["exit"] == 0
+        if not b.requirements and not auto_ok:
             gaps.append("No requirement checklist yet (proof_requirements, or `keelyard proof add`).")
         for r in b.requirements:
             if not r["done"]:

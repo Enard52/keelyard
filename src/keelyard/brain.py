@@ -31,19 +31,19 @@ def _cap(text: str, tokens: int) -> str:
 
 
 # --------------------------------------------------------------------------- brief
-def brief(cfg: Config, session: str, budget_tokens: int | None = None, query: str = "") -> str:
+def brief(cfg: Config, session: str, budget_tokens: int | None = None, query: str = "", lean: bool = False) -> str:
     """Rules, open proof items, a project map digest and recent memory, in that priority, within budget."""
     from .codemap import project_map
     from .proof import Proof
 
     budget = int(budget_tokens if budget_tokens is not None else cfg.section("brain")["brief_tokens"])
-    parts: list[str] = [RULES]
+    parts: list[str] = [] if lean else [RULES]  # lean: the AGENTS.md block already carries the rules
     try:
         b = Proof(cfg, session).load()
         open_items = [f"#{r['id']} {r['text']}" for r in b.requirements if not r["done"]]
         if open_items:
             parts.append("Open proof items:\n- " + "\n- ".join(open_items[:8]))
-        elif b.task:
+        elif b.task and not lean:
             parts.append(f"Current task: {b.task[:200]}")
     except Exception:  # noqa: BLE001 - a broken bundle must not hide the brief
         pass
