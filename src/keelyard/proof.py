@@ -203,6 +203,15 @@ class Proof:
                  if s.session == self.session and s.tool not in ("pre-rewind", "baseline", "stop")]
         return max(edits) if edits else None
 
+    def state(self) -> str:
+        """'no_work' (nothing changed, no checklist), 'open' (gaps left) or 'proven'."""
+        gaps = self.missing()
+        if gaps:
+            return "open"
+        if self.last_edit_ts() is None and not self.load().requirements:
+            return "no_work"
+        return "proven"
+
     def missing(self) -> list[str]:
         """Return what still has to be proven. Empty list = proof complete."""
         b = self.load()

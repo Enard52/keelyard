@@ -467,7 +467,7 @@ def do_status(a):
     gaps = pf.missing()
     data = {"version": __version__, "root": str(root), "agents": {x: installed(x, root) for x in AGENTS}, "steps": len(steps),
             "last_step": steps[-1].__dict__ if steps else None, "session": sid, "task": b.task,
-            "requirements": b.requirements, "proven": not gaps, "missing": gaps}
+            "requirements": b.requirements, "state": pf.state(), "proven": pf.state() == "proven", "missing": gaps}
     if _human(a):
         ui.heading("keelyard status", ui.tilde(root))
         ui.out.print("\n  [muted]agents[/]    " + "   ".join(
@@ -481,7 +481,8 @@ def do_status(a):
             ui.out.print("  [muted]timeline[/]  no snapshots yet")
         blocked = sum(bool(g.get("blocked")) for g in b.gate)
         times = "once" if blocked == 1 else f"{blocked} times"
-        ui.out.print("  [muted]proof[/]     " + ("[ok]proven[/]" if not gaps else f"[warn]{len(gaps)} open[/]")
+        ui.out.print("  [muted]proof[/]     " + ("[muted]no work yet[/]" if data["state"] == "no_work" else
+                                               "[ok]proven[/]" if not gaps else f"[warn]{len(gaps)} open[/]")
                      + (f" · the gate stopped the agent {times}" if blocked else "")
                      + (f" [muted]· session {sid}[/]" if sid != "default" else ""))
         if b.task:
@@ -582,15 +583,18 @@ def do_proof(a):
     pf = Proof(cfg, session.current(cfg))
     h = _human(a)
     if a.action == "status":
-        gaps = pf.missing()
+        gaps, state = pf.missing(), pf.state()
         if h:
-            if gaps:
+            if state == "no_work":
+                ui.out.print(f"[muted]{ui.DOT} no work yet[/]  [muted]no edits and no checklist in this session; nothing to prove[/]")
+            elif gaps:
                 ui.out.print("[warn]not proven yet[/]")
                 for g in gaps:
                     ui.line("skip", g, width=0)
             else:
                 ui.out.print(f"[ok]{ui.OK} proven[/]  [muted]every requirement has evidence; tests pass after the last edit[/]")
-        return (0 if not gaps else CHECK_FAILED), {"proven": not gaps, "missing": gaps, "bundle": pf.load().__dict__}
+        return (0 if not gaps else CHECK_FAILED), {"state": state, "proven": state == "proven", "missing": gaps,
+                                                   "bundle": pf.load().__dict__}
     if a.action == "add":
         reqs = pf.add_requirements(a.items)
         if h:

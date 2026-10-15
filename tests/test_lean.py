@@ -121,3 +121,17 @@ def test_session_start_runs_tests_into_brief_when_auto(project):
     text = out["hookSpecificOutput"]["additionalContext"]
     assert "before any edit" in text and "1 passed" in text
     assert Proof(cfg, "s1").load().test_runs[0]["phase"] == "before"
+
+
+def test_proof_status_says_no_work_when_nothing_changed(cfg, project, capsys):
+    from keelyard.cli import main
+
+    assert Proof(cfg, "s1").state() == "no_work"
+    assert main(["proof", "status"]) == 0
+    out = capsys.readouterr().out
+    assert "no work yet" in out and "proven" not in out
+    main(["proof", "status", "--json"])
+    data = json.loads(capsys.readouterr().out)
+    assert data["state"] == "no_work" and data["proven"] is False
+    main(["status"])
+    assert "no work yet" in capsys.readouterr().out
