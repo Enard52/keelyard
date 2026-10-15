@@ -155,14 +155,14 @@ PRESETS = {
 _PRESET = "balanced"  # the preset of the install in progress
 
 # OpenCode 2 `agents.build` override for the lean preset. A non-empty `system` replaces OpenCode's base prompt;
-# the denied tools drop out of the model's tool list. Shell, read, edit, glob and grep stay.
+# the denied tools drop out of the tool list. Shell, read, edit and write stay (the brief carries the file map).
 LEAN_OPENCODE_BUILD = {
     "system": ("You are a coding agent working in the user's repository. Use the tools to read, edit and run commands. "
                "Batch independent tool calls in one turn (read every file you need at once). Make the smallest "
                "correct change, run the tests once after editing, then reply in one or two lines. "
                "No preamble, no plans, no summaries."),
     "permissions": [{"action": a, "resource": "*", "effect": "deny"}
-                    for a in ("webfetch", "websearch", "subagent", "skill", "question", "todowrite", "execute")],
+                    for a in ("webfetch", "websearch", "subagent", "skill", "question", "todowrite", "execute", "glob", "grep")],
 }
 # Claude Code settings.json env for the lean preset (documented Claude Code variables).
 LEAN_CLAUDE_ENV = {"BASH_MAX_OUTPUT_LENGTH": "12000", "MAX_MCP_OUTPUT_TOKENS": "8000",
@@ -188,7 +188,7 @@ def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
             agents["build"] = LEAN_OPENCODE_BUILD
             _write_json(path, data)
             added["opencode_build"] = True
-            done.append("opencode.json (lean build agent: short prompt, 7 unused tools off)")
+            done.append("opencode.json (lean build agent: short prompt, 9 tools off)")
     if preset == "lean" and agent == "claude":
         path = root / ".claude" / "settings.json"
         data = _read_json(path)

@@ -19,7 +19,8 @@ def test_lean_opencode_trims_agent_and_uninstall_restores(project):
     assert len(build["system"]) < 600
     denied = {r["action"] for r in build["permissions"] if r["effect"] == "deny"}
     assert {"webfetch", "websearch", "subagent", "todowrite"} <= denied
-    assert "shell" not in denied and "edit" not in denied
+    assert {"glob", "grep"} <= denied
+    assert "shell" not in denied and "edit" not in denied and "read" not in denied
     assert "keelyard" not in oc.get("mcp", {})
     uninstall("opencode", project)
     assert json.loads((project / "opencode.json").read_text()) == {"theme": "dark"}

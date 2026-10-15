@@ -1,0 +1,62 @@
+{
+ "noisy-base": {
+  "cost_usd": 0,
+  "input_cache_read": 68406,
+  "input_total": 101528,
+  "input_uncached": 33122,
+  "model_calls": 8,
+  "output": 1100,
+  "reasoning": 170,
+  "tool_result_chars": 54887
+ },
+ "noisy-keel": {
+  "cost_usd": 0,
+  "input_cache_read": 23040,
+  "input_total": 31211,
+  "input_uncached": 8171,
+  "model_calls": 4,
+  "output": 795,
+  "reasoning": 153,
+  "tool_result_chars": 3074
+ },
+ "noisy-lean": {
+  "cost_usd": 0,
+  "input_cache_read": 12432,
+  "input_total": 16769,
+  "input_uncached": 4337,
+  "model_calls": 6,
+  "output": 468,
+  "reasoning": 396,
+  "tool_result_chars": 2854
+ },
+ "small-base": {
+  "cost_usd": 0,
+  "input_cache_read": 35840,
+  "input_total": 46916,
+  "input_uncached": 11076,
+  "model_calls": 5,
+  "output": 1217,
+  "reasoning": 0,
+  "tool_result_chars": 14389
+ },
+ "small-keel": {
+  "cost_usd": 0,
+  "input_cache_read": 41851,
+  "input_total": 51652,
+  "input_uncached": 9801,
+  "model_calls": 7,
+  "output": 680,
+  "reasoning": 482,
+  "tool_result_chars": 2502
+ },
+ "small-lean": {
+  "cost_usd": 0,
+  "input_cache_read": 8128,
+  "input_total": 11851,
+  "input_uncached": 3723,
+  "model_calls": 4,
+  "output": 356,
+  "reasoning": 137,
+  "tool_result_chars": 2654
+ }
+}

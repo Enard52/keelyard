@@ -40,12 +40,13 @@ The agent's own edits are replayed from [`docs/demo/hero.sh`](docs/demo/hero.sh)
 pipx install git+https://github.com/akobirjontulqinovfuture/keelyard   # or: pip install ...
 cd your-project
 keelyard init            # finds Claude Code, Codex and OpenCode and wires each one
+keelyard init --preset lean   # fewest tokens (reversible with keelyard uninstall <agent>)
 ```
 
 Then use your agent as usual. `keelyard status` shows where things stand, and `keelyard doctor` checks
 the setup. `keelyard selftest` runs a scripted agent through the whole flow in a temporary folder.
 
-> **Real runs (OpenCode 2, Windows, free model, n=1):** total session tokens −15% on a small 66-test task and 2.3× fewer on a noisy 1,566-test task (tool output 19× smaller), with all tests passing and proof recorded. Details in [BENCHMARKS.md](BENCHMARKS.md#after-the-lean-mode-fix-commit-f93dbaa-same-pc-same-free-model-n1-per-row).
+> **Real runs (OpenCode 2, Windows, free model):** with `keelyard init --preset lean`, 9.7× fewer input tokens on a noisy 1,566-test task (97k → 10k) and 3.7× fewer on a small 66-test task (45k → 12k); all tests pass and proof is recorded. Single runs, details and caveats in [BENCHMARKS.md](BENCHMARKS.md#presets-measured-on-opencode-2). Presets: [docs/guide/presets.md](docs/guide/presets.md).
 
 ## What it does
 

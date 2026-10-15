@@ -42,3 +42,28 @@ What limits the ratio: OpenCode's own system prompt and tool definitions are res
 (about 6k tokens per call here), so five calls cost ~30k tokens before any project content. keelyard cuts
 what it controls (tool output 19×, e.g. `pytest -v` 12,849 → 279 tokens) but cannot reach 10× on whole-session
 tokens for short tasks. The gap grows with longer sessions and noisier output.
+
+## Presets, measured on OpenCode 2
+
+Windows 11, OpenCode 2.0.22, free `opencode/big-pickle` ($0), same task text, all runs ended with every test passing
+and (keelyard runs) proof "proven". Session totals from `opencode session export`; raw summaries in
+`bench/real/r6/summary.json` and `bench/real/r7/summary.json`. One run per row, two baseline runs per task.
+
+| task | run | model calls | input incl. cache | uncached | output+reasoning | tool output chars |
+|---|---|---|---|---|---|---|
+| small (66 tests) | baseline, run A | 5 | 46,916 | 11,076 | 1,217 | 14,389 |
+| small (66 tests) | baseline, run B | 5 | 43,849 | 6,921 | 815 | 14,512 |
+| small (66 tests) | keelyard balanced | 7 | 51,652 | 9,801 | 1,162 | 2,502 |
+| small (66 tests) | keelyard lean (7 tools off) | 4 | 11,851 | 3,723 | 493 | 2,654 |
+| small (66 tests) | **keelyard lean (final, 9 tools off)** | 5 | **12,132** | 2,660 | 494 | 2,654 |
+| noisy (1,566 tests, `pytest -v`) | baseline, run A | 8 | 101,528 | 33,122 | 1,270 | 54,887 |
+| noisy (1,566 tests, `pytest -v`) | baseline, run B | 5 | 93,397 | 18,581 | 887 | 54,795 |
+| noisy (1,566 tests, `pytest -v`) | keelyard balanced | 4 | 31,211 | 8,171 | 948 | 3,074 |
+| noisy (1,566 tests, `pytest -v`) | keelyard lean (7 tools off) | 6 | 16,769 | 4,337 | 864 | 2,854 |
+| noisy (1,566 tests, `pytest -v`) | **keelyard lean (final, 9 tools off)** | 4 | **9,995** | 1,867 | 465 | 2,570 |
+
+Ratios against the mean of the two baselines: noisy task **9.7× fewer** input tokens (97,463 → 9,995),
+small task **3.7× fewer** (45,383 → 12,132). Balanced mode on the small task was *above* baseline in this run
+(7 model calls); the session-to-session spread of the same setup is large, so treat single runs as indicative.
+Where the savings come from: the lean OpenCode agent's first request is ~1.5k tokens instead of ~5.5k
+(prompt and tool list), and `pytest -v` output reaches the model as ~300 tokens instead of ~13k.

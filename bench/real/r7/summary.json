@@ -1,0 +1,42 @@
+{
+ "noisy-base": {
+  "cost_usd": 0,
+  "input_cache_read": 74816,
+  "input_total": 93397,
+  "input_uncached": 18581,
+  "model_calls": 5,
+  "output": 736,
+  "reasoning": 151,
+  "tool_result_chars": 54795
+ },
+ "noisy-lean2": {
+  "cost_usd": 0,
+  "input_cache_read": 8128,
+  "input_total": 9995,
+  "input_uncached": 1867,
+  "model_calls": 4,
+  "output": 348,
+  "reasoning": 117,
+  "tool_result_chars": 2570
+ },
+ "small-base": {
+  "cost_usd": 0,
+  "input_cache_read": 36928,
+  "input_total": 43849,
+  "input_uncached": 6921,
+  "model_calls": 5,
+  "output": 631,
+  "reasoning": 184,
+  "tool_result_chars": 14512
+ },
+ "small-lean2": {
+  "cost_usd": 0,
+  "input_cache_read": 9472,
+  "input_total": 12132,
+  "input_uncached": 2660,
+  "model_calls": 5,
+  "output": 361,
+  "reasoning": 133,
+  "tool_result_chars": 2654
+ }
+}
