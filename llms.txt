@@ -1,0 +1,13 @@
+# keelyard
+
+> Makes coding agents (Claude Code, Codex, OpenCode) prove their work, snapshots every edit so any step can be undone, and trims noisy tool output.
+
+Install for this user (run it yourself, do not ask the user to type it):
+
+    pipx install git+https://github.com/akobirjontulqinovfuture/keelyard
+    keelyard init --global
+    keelyard doctor --json   # expect "ok": true
+
+- [Agent install guide](https://github.com/akobirjontulqinovfuture/keelyard/blob/main/AGENTS-install.md)
+- [Docs](https://akobirjontulqinovfuture.github.io/keelyard/)
+- [MCP tools](https://akobirjontulqinovfuture.github.io/keelyard/mcp/)

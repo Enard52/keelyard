@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -268,3 +269,182 @@ def uninstall(agent: str, root: Path) -> list[str]:
         plugin.unlink()
         done.append(".opencode/plugin/keelyard.js")
     return done + uninstall_guides(agent, root)
+
+
+# --------------------------------------------------------------------------- global (user-level) install
+TOML_START, TOML_END = "# keelyard:start", "# keelyard:end"
+
+
+def global_paths(home: Path | None = None) -> dict[str, Path]:
+    h = home or Path.home()
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    oc = Path(xdg) / "opencode" if xdg else h / ".config" / "opencode"
+    return {"claude_settings": h / ".claude" / "settings.json", "claude_json": h / ".claude.json",
+            "claude_md": h / ".claude" / "CLAUDE.md", "claude_dir": h / ".claude",
+            "codex_toml": h / ".codex" / "config.toml", "codex_hooks": h / ".codex" / "hooks.json",
+            "codex_md": h / ".codex" / "AGENTS.md",
+            "opencode_json": oc / "opencode.json", "opencode_plugin": oc / "plugin" / "keelyard.js",
+            "opencode_md": oc / "AGENTS.md", "opencode_dir": oc}
+
+
+def _backup(path: Path) -> None:
+    """Keep the user's original once: <file>.keelyard-backup (never overwritten)."""
+    bak = path.with_name(path.name + ".keelyard-backup")
+    if path.exists() and not bak.exists():
+        shutil.copy2(path, bak)
+
+
+def _toml_block(path: Path, body: str | None) -> None:
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    text = re.sub(rf"\n?{re.escape(TOML_START)}\n.*?{re.escape(TOML_END)}\n?", "\n", text, flags=re.S).rstrip("\n")
+    if body:
+        text = (text + "\n\n" if text else "") + f"{TOML_START}\n{body.strip()}\n{TOML_END}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text + "\n" if text else "", encoding="utf-8")
+
+
+def _strip_hooks(path: Path) -> bool:
+    if not path.exists():
+        return False
+    data = _read_json(path)
+    for event, groups in list(data.get("hooks", {}).items()):
+        for g in groups:
+            g["hooks"] = [h for h in g.get("hooks", []) if not _is_ours(h.get("command", ""))]
+        groups[:] = [g for g in groups if g.get("hooks")]
+        if not groups:
+            del data["hooks"][event]
+    if not data.get("hooks"):
+        data.pop("hooks", None)
+    _write_json(path, data)
+    return True
+
+
+def _drop_key(path: Path, key: str) -> bool:
+    if not path.exists():
+        return False
+    data = _read_json(path)
+    if data.get(key, {}).pop("keelyard", None) is None:
+        return False
+    if not data[key]:
+        data.pop(key)
+    _write_json(path, data)
+    return True
+
+
+def install_global(agent: str, home: Path | None = None) -> list[str]:
+    """Wire one agent for every project of this user. Existing files are backed up once and merged, never replaced."""
+    if agent not in AGENTS:
+        raise InstallError(f"unknown agent {agent!r}. Hint: choose one of {', '.join(AGENTS)}.")
+    p = global_paths(home)
+    for k in ("claude_settings", "claude_json", "codex_hooks", "opencode_json"):
+        _read_json(p[k])  # validate first: a broken file must never leave a half install
+    rules = _guide("agents_block.md")
+    done = []
+    if agent == "claude":
+        for k in ("claude_settings", "claude_json", "claude_md"):
+            _backup(p[k])
+        _merge_hooks(p["claude_settings"], "claude", CLAUDE_EVENTS)
+        _merge_json(p["claude_json"], "mcpServers", "keelyard", {"type": "stdio", "command": _exe_path(), "args": ["mcp"]})
+        _set_block(p["claude_md"], rules)
+        skill = p["claude_dir"] / "skills" / "keelyard" / "SKILL.md"
+        skill.parent.mkdir(parents=True, exist_ok=True)
+        skill.write_text(_guide("SKILL.md"), encoding="utf-8")
+        cmds = p["claude_dir"] / "commands" / "keelyard"
+        cmds.mkdir(parents=True, exist_ok=True)
+        for name, src in CLAUDE_COMMANDS.items():
+            (cmds / f"{name}.md").write_text(_guide(src), encoding="utf-8")
+        for name in WORKFLOWS:
+            (cmds / f"{name}.md").write_text(_command(name), encoding="utf-8")
+        done += [str(p["claude_settings"]), str(p["claude_json"]), str(p["claude_md"])]
+    elif agent == "codex":
+        for k in ("codex_toml", "codex_hooks", "codex_md"):
+            _backup(p[k])
+        _merge_hooks(p["codex_hooks"], "codex", CODEX_EVENTS)
+        _toml_block(p["codex_toml"], f"[mcp_servers.keelyard]\ncommand = {json.dumps(_exe_path())}\nargs = [\"mcp\"]")
+        _set_block(p["codex_md"], rules)
+        done += [str(p["codex_toml"]), str(p["codex_hooks"]), str(p["codex_md"])]
+    else:
+        for k in ("opencode_json", "opencode_md"):
+            _backup(p[k])
+        js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text()
+        p["opencode_plugin"].parent.mkdir(parents=True, exist_ok=True)
+        p["opencode_plugin"].write_text(js.replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(_exe_path())};", 1))
+        _merge_json(p["opencode_json"], "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
+        _set_block(p["opencode_md"], rules)
+        cmds = p["opencode_dir"] / "command"
+        cmds.mkdir(parents=True, exist_ok=True)
+        for name in WORKFLOWS:
+            (cmds / f"keelyard-{name}.md").write_text(_command(name), encoding="utf-8")
+        done += [str(p["opencode_json"]), str(p["opencode_plugin"]), str(p["opencode_md"])]
+    _set_global_marker(agent, True)
+    return done
+
+
+def uninstall_global(agent: str, home: Path | None = None) -> list[str]:
+    p = global_paths(home)
+    done = []
+    if agent == "claude":
+        if _strip_hooks(p["claude_settings"]):
+            done.append(str(p["claude_settings"]))
+        if _drop_key(p["claude_json"], "mcpServers"):
+            done.append(str(p["claude_json"]))
+        if _set_block(p["claude_md"], None):
+            done.append(str(p["claude_md"]))
+        for d in (p["claude_dir"] / "skills" / "keelyard", p["claude_dir"] / "commands" / "keelyard"):
+            if d.is_dir():
+                shutil.rmtree(d)
+                done.append(str(d))
+    elif agent == "codex":
+        if _strip_hooks(p["codex_hooks"]):
+            done.append(str(p["codex_hooks"]))
+        if p["codex_toml"].exists():
+            _toml_block(p["codex_toml"], None)
+            done.append(str(p["codex_toml"]))
+        if _set_block(p["codex_md"], None):
+            done.append(str(p["codex_md"]))
+    else:
+        if _drop_key(p["opencode_json"], "mcp"):
+            done.append(str(p["opencode_json"]))
+        if p["opencode_plugin"].exists():
+            p["opencode_plugin"].unlink()
+            done.append(str(p["opencode_plugin"]))
+        if _set_block(p["opencode_md"], None):
+            done.append(str(p["opencode_md"]))
+        for name in WORKFLOWS:
+            f = p["opencode_dir"] / "command" / f"keelyard-{name}.md"
+            if f.exists():
+                f.unlink()
+    _set_global_marker(agent, False)
+    return done
+
+
+def _marker() -> Path:
+    from ..config import data_home
+
+    return data_home() / "global.json"
+
+
+def _set_global_marker(agent: str, on: bool) -> None:
+    m = _marker()
+    agents = set(json.loads(m.read_text()).get("agents", [])) if m.exists() else set()
+    (agents.add if on else agents.discard)(agent)
+    m.write_text(json.dumps({"agents": sorted(agents)}))
+
+
+def global_agents() -> list[str]:
+    try:
+        return list(json.loads(_marker().read_text()).get("agents", []))
+    except (OSError, ValueError):
+        return []
+
+
+def installed_global(agent: str, home: Path | None = None) -> bool:
+    p = global_paths(home)
+    if agent == "opencode":
+        return p["opencode_plugin"].exists()
+    f = p["claude_settings"] if agent == "claude" else p["codex_hooks"]
+    try:
+        t = f.read_text()
+    except OSError:
+        return False
+    return "keelyard" in t and " hook " in t

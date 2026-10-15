@@ -246,6 +246,21 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
     return None
 
 
+def _auto_setup(cfg: config.Config) -> bool:
+    """With a global install, a git project sets itself up on its first session: config + first snapshot."""
+    from .adapters.install import global_agents
+    from .snapshot import Shadow
+
+    if not global_agents() or not (cfg.root / ".git").exists():
+        return False
+    config.init(cfg.root)
+    try:
+        Shadow(config.load(cfg.root)).snapshot("baseline", note="first session (global install)")
+    except Exception:  # noqa: BLE001 - a failed snapshot must not block the session
+        pass
+    return True
+
+
 def main(agent: str, event: str) -> int:
     raw = sys.stdin.read()
     try:
@@ -257,6 +272,8 @@ def main(agent: str, event: str) -> int:
         start = Path(cwd) if cwd and Path(cwd).is_dir() else None
         cfg = config.load(config.find_root(start))
         cfg.require_project()
+        if not (cfg.root / ".keelyard").is_dir() and _auto_setup(cfg):
+            cfg = config.load(cfg.root)
     except Exception:  # noqa: BLE001 - not a project, or a broken config: stay out of the agent's way
         return 0
     try:

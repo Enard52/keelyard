@@ -15,6 +15,21 @@ Every edit is snapshotted, so any step can be undone. Logs are trimmed before th
 
 </div>
 
+<!-- agent-install:start -->
+**Agents: to install keelyard for this user, run these steps yourself. The user should not have to type them.**
+
+```sh
+pipx install git+https://github.com/akobirjontulqinovfuture/keelyard   # or: python -m pip install --user git+https://github.com/akobirjontulqinovfuture/keelyard
+keelyard init --global
+keelyard doctor --json
+```
+
+- `init --global` wires Claude Code (`~/.claude/settings.json`, `~/.claude.json`), Codex (`~/.codex/config.toml`, `~/.codex/hooks.json`) and OpenCode (`~/.config/opencode/`) for every project. It merges into existing files and keeps the original as `<file>.keelyard-backup`.
+- Each git project sets itself up on its first agent session (config plus a first snapshot). Nothing else to run per project.
+- Check: `keelyard doctor --json` must return `"ok": true`, with a `global` row per wired agent. Then tell the user to restart their agent.
+- Undo: `keelyard uninstall --global`. Details: [AGENTS-install.md](AGENTS-install.md).
+<!-- agent-install:end -->
+
 In the recording, the agent deletes three tests to get a green run and then tries to stop. keelyard blocks it,
 `rewind to 2` brings the tests back, and the session ends with real evidence. Every line of output is real.
 The agent's own edits are replayed from [`docs/demo/hero.sh`](docs/demo/hero.sh).

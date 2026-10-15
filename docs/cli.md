@@ -70,7 +70,7 @@ Run `keelyard <command> --help` for examples. Every command accepts --json.
 
 ```text
 usage: keelyard <command> [options] init [-h] [--json] [--agent {claude,codex,opencode}]
-                                         [--no-agents] [--dry-run]
+                                         [--no-agents] [--dry-run] [--global]
 
 set up this project and wire the agents found on this machine
 
@@ -81,6 +81,8 @@ options:
                         wire only this agent (repeatable)
   --no-agents           create the config but wire no agent
   --dry-run             print what would change and stop
+  --global              wire the agents for every project of this user (~/.claude, ~/.codex,
+                        ~/.config/opencode); projects set themselves up on their first session
 
 examples:
   keelyard init                    # detect agents, wire them, take a first snapshot
@@ -663,7 +665,7 @@ examples:
 ## install
 
 ```text
-usage: keelyard <command> [options] install [-h] [--json] {claude,codex,opencode}
+usage: keelyard <command> [options] install [-h] [--json] [--global] [{claude,codex,opencode}]
 
 wire one agent in this project
 
@@ -673,16 +675,17 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --json                print one JSON object on stdout (for scripts and agents)
+  --global              wire at user level (all agents if none named)
 
 examples:
   keelyard install claude
-  keelyard install codex
+  keelyard install --global
 ```
 
 ## uninstall
 
 ```text
-usage: keelyard <command> [options] uninstall [-h] [--json] {claude,codex,opencode}
+usage: keelyard <command> [options] uninstall [-h] [--json] [--global] [{claude,codex,opencode}]
 
 unwire one agent in this project
 
@@ -692,8 +695,9 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --json                print one JSON object on stdout (for scripts and agents)
+  --global              unwire at user level (all agents if none named)
 
 examples:
   keelyard uninstall claude
-  keelyard uninstall codex
+  keelyard uninstall --global
 ```

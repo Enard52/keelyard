@@ -133,6 +133,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--agent", action="append", choices=["claude", "codex", "opencode"], help="wire only this agent (repeatable)")
     p.add_argument("--no-agents", action="store_true", help="create the config but wire no agent")
     p.add_argument("--dry-run", action="store_true", help="print what would change and stop")
+    p.add_argument("--global", dest="glob", action="store_true",
+                   help="wire the agents for every project of this user (~/.claude, ~/.codex, ~/.config/opencode); "
+                        "projects set themselves up on their first session")
 
     cmd("doctor", "check the installation and wiring; exits 3 if something is broken",
         "examples:\n  keelyard doctor\n  keelyard doctor --json")
@@ -142,8 +145,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--keep", action="store_true", help="keep the temporary project")
 
     for name, verb in (("install", "wire"), ("uninstall", "unwire")):
-        p = cmd(name, f"{verb} one agent in this project", f"examples:\n  keelyard {name} claude\n  keelyard {name} codex")
-        p.add_argument("agent", choices=["claude", "codex", "opencode"])
+        p = cmd(name, f"{verb} one agent in this project", f"examples:\n  keelyard {name} claude\n  keelyard {name} --global")
+        p.add_argument("agent", nargs="?", choices=["claude", "codex", "opencode"])
+        p.add_argument("--global", dest="glob", action="store_true", help=f"{verb} at user level (all agents if none named)")
 
     r = group(cmd("rewind", "list, inspect and undo agent steps", leaf=False), "action", "")
     r.s.required = False  # bare `keelyard rewind` lists steps
@@ -244,10 +248,38 @@ def _human(a) -> bool:
     return not getattr(a, "json", False)
 
 
+def _do_global(a, remove: bool):
+    from . import ui
+    from .adapters.install import AGENTS, InstallError, detect, install_global, uninstall_global
+
+    agents = [a.agent] if getattr(a, "agent", None) else list(AGENTS)
+    if isinstance(getattr(a, "agent", None), list):
+        agents = a.agent
+    data = {"global": True, "agents": agents, "changed": {}, "detected": detect()}
+    h = _human(a)
+    if h:
+        ui.heading("keelyard uninstall --global" if remove else "keelyard init --global", "all projects of this user")
+    for x in agents:
+        try:
+            files = uninstall_global(x) if remove else install_global(x)
+        except InstallError as e:
+            raise Fail(str(e)) from None
+        data["changed"][x] = files
+        if h:
+            ui.line("ok", x, ", ".join(ui.tilde(f) for f in files) or "nothing to remove")
+    if h and not remove:
+        ui.out.print("\n  backups: <file>.keelyard-backup next to each changed file")
+        ui.out.print("  each git project sets itself up on its first agent session. Check: [key]keelyard doctor --json[/]")
+    return 0, data
+
+
 def do_init(a):
     from . import ui
     from .adapters.install import AGENTS, detect, install, installed
     from .snapshot import Shadow
+
+    if a.glob:
+        return _do_global(a, remove=False)
 
     root = config.find_root()
     found = detect()
@@ -335,7 +367,11 @@ def _checks() -> list[tuple[str, str, str, str]]:
         else:
             rows.append(("system", "skip", mod, f"optional, for {why}: pip install 'keelyard[{extra}]'"))
     from . import ui
+    from .adapters.install import global_agents, installed_global
 
+    for x in global_agents():
+        rows.append(("global", "ok" if installed_global(x) else "bad", x,
+                     "wired for all projects" if installed_global(x) else "marked global but not wired. Hint: keelyard init --global"))
     exe = shutil.which("keelyard")
     rows.append(("system", "ok" if exe else "warn", "keelyard on PATH",
                  ui.tilde(exe) if exe else "not found; hooks call `keelyard`. Hint: pipx install keelyard"))
@@ -773,6 +809,10 @@ def do_install(a):
     from . import ui
     from .adapters import install as inst
 
+    if a.glob:
+        return _do_global(a, remove=a.cmd == "uninstall")
+    if not a.agent:
+        raise Fail(f"name an agent: keelyard {a.cmd} claude|codex|opencode, or use --global.")
     root = config.find_root()
     if a.cmd == "install":
         config.init(root)
