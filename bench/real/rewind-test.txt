@@ -1,0 +1,13 @@
+PS> keelyard rewind to 1
+  ✓ restored step #1 
+  changed your mind? keelyard rewind to 2
+PS> python -m pytest -q
+FAILED tests/test_cart.py::test_unknown_coupon_raises - Failed: DID NOT RAISE ValueError
+FAILED tests/test_inventory.py::test_remove_floor - assert -2 == 0
+3 failed, 63 passed in 0.51s
+PS> keelyard rewind list
+Thu 15 Oct
+  #1   19:27:16  baseline      .gitignore, cart.py, inventory.py  +4
+  #2   19:28:38  edit          cart.py, inventory.py
+  #3   19:32:24  rewind        cart.py, inventory.py
+show a step: keelyard rewind show <n> · go back: keelyard rewind to <n>

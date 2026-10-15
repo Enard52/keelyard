@@ -1,0 +1,11 @@
+keelyard status  ~\keelyard-test\r3\shop
+
+  agents    · claude   · codex   ✓ opencode
+  timeline  2 steps · last #2 edit, 3m ago, 2 files
+  proof     proven · session ses_ec00a203effeM0V5TMDePZrVT5
+  task      "Two tests fail in this project. Make total() in cart.py support the …
+
+  ✓ 1. total() applies 'SAVE10' coupon as 10 percent off 
+  ✓ 2. total() raises ValueError for unknown coupons 
+  ✓ 3. inventory.remove never goes below zero 
+  ✓ 4. all tests pass with python -m pytest -v (before baseline … 

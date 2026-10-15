@@ -1,0 +1,12 @@
+PS> keelyard rewind to 2
+  ✓ restored step #2 
+  changed your mind? keelyard rewind to 3
+PS> python -m pytest -q
+66 passed in 0.23s
+PS> keelyard rewind list
+Thu 15 Oct
+  #1   19:27:16  baseline      .gitignore, cart.py, inventory.py  +4
+  #2   19:28:38  edit          cart.py, inventory.py
+  #3   19:32:24  rewind        cart.py, inventory.py
+  #4   19:32:31  rewind        cart.py, inventory.py
+show a step: keelyard rewind show <n> · go back: keelyard rewind to <n>
