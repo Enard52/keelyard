@@ -11,6 +11,7 @@ import asyncio
 import dataclasses
 import datetime as dt
 import json
+import shlex
 import sys
 import textwrap
 from pathlib import Path
@@ -208,8 +209,13 @@ def _parser() -> argparse.ArgumentParser:
     x = r.add_parser("outline", help="signatures only")
     x.add_argument("path", type=Path)
     r.add_parser("map", help="compact project map")
-    x = r.add_parser("find", help="where a symbol is defined")
+    x = r.add_parser("find", help="where a symbol is defined (best first, paged)")
     x.add_argument("name")
+    x.add_argument("--refs", action="store_true", help="also list call sites and uses")
+    x.add_argument("--offset", type=int, default=0, help="skip this many results (next page)")
+    x.add_argument("--limit", type=int, default=20, help="results per page (default 20)")
+    x = r.add_parser("related", help="what a file imports, who imports it, and its tests")
+    x.add_argument("path")
 
     r = group(cmd("memory", "search past sessions across all your agents"), "action", "")
     r.add_parser("index", help="read new sessions from Claude Code, Codex and OpenCode")
@@ -218,6 +224,7 @@ def _parser() -> argparse.ArgumentParser:
     x.add_argument("query")
     x.add_argument("--project")
     x.add_argument("--budget", type=int, default=2400, help="max characters returned (default 2400)")
+    x.add_argument("--offset", type=int, default=0, help="skip this many hits (next page)")
 
     p = cmd("usage", "tokens and cost from your local agent logs", "examples:\n  keelyard usage\n  keelyard usage --by model")
     p.add_argument("--by", choices=["day", "model", "agent"], default="day")
@@ -753,9 +760,24 @@ def do_code(a):
     elif a.action == "map":
         text = codemap.project_map(_cfg().root)
         data = {"map": text}
+    elif a.action == "related":
+        try:
+            data = codemap.related(_cfg().root, str(a.path))
+        except FileNotFoundError as e:
+            raise Fail(str(e)) from None
+        text = "\n".join(f"{k.replace('_', ' ')}: {', '.join(v) or '-'}" for k, v in data.items() if k != "file")
     else:
-        text = codemap.find_symbol(_cfg().root, a.name)
-        data = {"name": a.name, "matches": [ln for ln in text.splitlines() if ":" in ln]}
+        root = _cfg().root
+        hits = codemap.find_symbol_ranked(root, a.name)
+        if a.refs:
+            hits += [f"use {r}" for r in codemap.references(root, a.name)]
+        pg = codemap.page(hits, a.offset, a.limit)
+        data = {"name": a.name, "matches": pg["items"], "total": pg["total"], "remaining": pg["remaining"],
+                **({"next_offset": pg["next_offset"]} if "next_offset" in pg else {})}
+        text = "\n".join(pg["items"]) or f"no definition of {a.name} found"
+        if pg["remaining"]:
+            text += (f"\n… {pg['remaining']} more; next page: keelyard code find {a.name}"
+                     f"{' --refs' if a.refs else ''} --offset {pg['next_offset']}")
     if _human(a):
         print(text)
     return 0, data
@@ -784,10 +806,12 @@ def do_memory(a):
             for k, v in st.items():
                 ui.line("ok", k, f"{v['sessions']} sessions, {v['chunks']} chunks")
         return 0, {"agents": st}
-    hits = mem.search(a.query, a.project, a.budget)
+    res = mem.search_page(a.query, a.project, a.budget, offset=a.offset)
     if h:
-        print(format_hits(hits))
-    return 0, {"query": a.query, "hits": hits}
+        print(format_hits(res["hits"]))
+        if res["remaining"]:
+            print(f"… {res['remaining']} more; next page: keelyard memory search {shlex.quote(a.query)} --offset {res['next_offset']}")
+    return 0, {"query": a.query, **res}
 
 
 def do_usage(a):

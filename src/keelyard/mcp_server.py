@@ -25,7 +25,6 @@ except ImportError:  # mcp 1.x
     from mcp.server.fastmcp.exceptions import ToolError  # type: ignore
 
 from . import __version__, config, session
-from .codemap import find_symbol as _find_symbol
 from .codemap import outline as _outline
 from .codemap import project_map as _project_map
 from .filters import run_filtered
@@ -208,10 +207,18 @@ def recall(output_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9]{1,64}$", descr
 
 
 @_tool(_ann("Outline a file", read_only=True))
-def outline(path: Annotated[str, Field(description='Project-relative path, e.g. "src/cart.py".')]) -> dict[str, Any]:
+def outline(
+    path: Annotated[str, Field(description='Project-relative path, e.g. "src/cart.py".')],
+    related: Annotated[bool, Field(description="Also list what it imports, who imports it, and its tests.")] = False,
+) -> dict[str, Any]:
     """Signatures and classes with line numbers. Read this before reading a whole file."""
     cfg, sid = _ctx()
-    return {"path": path, "outline": _outline(ReadCache(cfg, sid).resolve(path))}
+    out = {"path": path, "outline": _outline(ReadCache(cfg, sid).resolve(path))}
+    if related:
+        from .codemap import related as _related
+
+        out["related"] = _related(cfg.root, path)
+    return out
 
 
 @_tool(_ann("Project map", read_only=True))
@@ -222,11 +229,24 @@ def project_map() -> dict[str, Any]:
 
 
 @_tool(_ann("Find a definition", read_only=True))
-def find_symbol(name: Annotated[str, Field(min_length=1, description='Function, class or type name, e.g. "Cart".')]) -> dict[str, Any]:
-    """Where is a symbol defined? Returns {"matches": ["path:line: signature", ...]}."""
+def find_symbol(
+    name: Annotated[str, Field(min_length=1, description='Function, class or type name, e.g. "Cart".')],
+    refs: Annotated[bool, Field(description="Also list call sites and uses (source before tests).")] = False,
+    offset: Annotated[int, Field(ge=0, description="Skip this many results; use next_offset from the last call.")] = 0,
+) -> dict[str, Any]:
+    """Where is a symbol defined (best match first), and with refs=true where it is used.
+    Returns {"matches": [...], "remaining", "next_offset"?}; results are paged, never cut silently."""
+    from .codemap import find_symbol_ranked, page, references
+
     cfg, _ = _ctx()
-    text = _find_symbol(cfg.root, name)
-    return {"name": name, "matches": [ln for ln in text.splitlines() if ln.strip() and ":" in ln]}
+    hits = find_symbol_ranked(cfg.root, name)
+    if refs:
+        hits = hits + [f"use {r}" for r in references(cfg.root, name)]
+    pg = page(hits, offset, 20)
+    out = {"name": name, "matches": pg["items"], "total": pg["total"], "remaining": pg["remaining"]}
+    if "next_offset" in pg:
+        out["next_offset"] = pg["next_offset"]
+    return out
 
 
 @_tool(_ann("Token usage", read_only=True))
@@ -326,13 +346,14 @@ def memory_search(
     query: Annotated[str, Field(min_length=1, description='Words to look for, e.g. "stripe webhook signature".')],
     this_project_only: Annotated[bool, Field(description="Only sessions that ran in this project.")] = True,
     budget_chars: Annotated[int, Field(ge=200, le=20000, description="Max characters of snippets returned.")] = 2400,
+    offset: Annotated[int, Field(ge=0, description="Skip this many hits; use next_offset from the last call.")] = 0,
 ) -> dict[str, Any]:
-    """Search past Claude Code, Codex and OpenCode sessions. New sessions are indexed first.
-    Returns {"hits": [{"agent", "session", "project", "ts", "role", "snippet"}]}."""
+    """Search past Claude Code, Codex and OpenCode sessions, best match first. New sessions are indexed first.
+    Returns {"hits": [{"agent", "session", "project", "ts", "role", "snippet"}], "remaining", "next_offset"?}."""
     cfg, _ = _ctx()
     m = Memory()
     m.ingest()
-    return {"query": query, "hits": m.search(query, str(cfg.root) if this_project_only else None, budget_chars)}
+    return {"query": query, **m.search_page(query, str(cfg.root) if this_project_only else None, budget_chars, offset=offset)}
 
 
 @_tool(_ann("keelyard status", read_only=True))

@@ -247,9 +247,15 @@ class Memory:
         return stats
 
     def search(self, query: str, project: str | None = None, budget_chars: int = 2400, limit: int = 8) -> list[dict]:
+        return self.search_page(query, project, budget_chars, limit)["hits"]
+
+    def search_page(self, query: str, project: str | None = None, budget_chars: int = 2400, limit: int = 8,
+                    offset: int = 0) -> dict:
+        """Best matches first (bm25). Says how many more match and where the next page starts."""
+        empty = {"hits": [], "total": 0, "remaining": 0}
         words = re.findall(r"\w+", query.lower())
         if not words:
-            return []
+            return empty
         fts_q = " OR ".join(f'"{w}"' for w in words[:16])
         sql = ("SELECT c.agent, c.session, c.project, c.ts, c.role, snippet(fts, 0, '', '', ' … ', 40) "
                "FROM fts JOIN chunks c ON c.id = fts.rowid WHERE fts MATCH ?")
@@ -264,14 +270,18 @@ class Memory:
                 args += [cand, esc + "/%"]
             sql += " AND (" + " OR ".join(clauses) + ")"
         sql += " ORDER BY bm25(fts) LIMIT ?"
-        args.append(limit * 3)
+        args.append(500)  # total is reported as "500+" beyond this
+        rows = self.db.execute(sql, args).fetchall()
         out, used = [], 0
-        for agent, session, proj, ts, role, snip in self.db.execute(sql, args):
-            if used + len(snip) > budget_chars or len(out) >= limit:
+        for agent, session, proj, ts, role, snip in rows[offset:]:
+            if len(out) >= limit or (out and used + len(snip) > budget_chars):
                 break
             out.append({"agent": agent, "session": session, "project": proj, "ts": ts, "role": role, "snippet": snip})
             used += len(snip)
-        return out
+        res = {"hits": out, "total": len(rows), "remaining": max(0, len(rows) - offset - len(out))}
+        if res["remaining"]:
+            res["next_offset"] = offset + len(out)
+        return res
 
     def stats(self) -> dict:
         rows = self.db.execute("SELECT agent, count(*), count(distinct session) FROM chunks GROUP BY agent").fetchall()
