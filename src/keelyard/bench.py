@@ -23,7 +23,7 @@ from .snapshot import Shadow
 def bench_compress(corpus: Path) -> dict:
     rows = []
     for f in sorted(corpus.glob("*.log")):
-        raw = f.read_text(errors="replace")
+        raw = f.read_text(errors="replace", encoding="utf-8")
         small = compress_output(raw)
         rows.append({"file": f.name, "raw": approx_tokens(raw), "out": approx_tokens(small)})
     if not rows:
@@ -42,7 +42,7 @@ def bench_reads() -> dict:
     for f in files:
         pending: dict[str, str] = {}
         seen: dict[str, str] = {}
-        for line in f.read_text(errors="replace").splitlines():
+        for line in f.read_text(errors="replace", encoding="utf-8").splitlines():
             try:
                 j = json.loads(line)
             except json.JSONDecodeError:

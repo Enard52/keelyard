@@ -73,7 +73,7 @@ def _filter_bash(cfg: config.Config, tin: dict, resp) -> dict | None:
     h = hashlib.sha256(raw.encode()).hexdigest()[:12]
     raw_dir = cfg.state / "raw"
     raw_dir.mkdir(exist_ok=True)
-    (raw_dir / h).write_text(raw)
+    (raw_dir / h).write_text(raw, encoding="utf-8")
     note = f"\n[keelyard filtered {approx_tokens(raw)}→{approx_tokens(small)} tokens; full output: keelyard recall {h}]"
     return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": {
         "stdout": small + note, "stderr": "", "interrupted": bool(resp.get("interrupted")), "isImage": False}}}
@@ -329,7 +329,7 @@ def main(agent: str, event: str) -> int:
         with log.open("a", encoding="utf-8") as f:
             f.write(f"{time.ctime()} {agent} {event}\n{traceback.format_exc()}\n")
         if log.stat().st_size > 1_000_000:  # keep the log bounded
-            log.write_text(log.read_text(errors="replace")[-200_000:])
+            log.write_text(log.read_text(encoding="utf-8", errors="replace")[-200_000:], encoding="utf-8")
         return 0
     if out:
         print(json.dumps(out))

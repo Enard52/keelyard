@@ -116,7 +116,7 @@ def _file_lines(root: Path, rel: str) -> list[str] | None:
     p = (root / rel).resolve()
     if root not in p.parents or not p.is_file():
         return None
-    return p.read_text(errors="replace").splitlines()
+    return p.read_text(errors="replace", encoding="utf-8").splitlines()
 
 
 def verify_citations(root: Path, answer: str, files: list[str]) -> tuple[bool, list[str]]:

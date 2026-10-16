@@ -54,7 +54,7 @@ def _flatten(content) -> str:
 
 # --------------------------------------------------------------------------- readers
 def read_claude(path: Path) -> Iterator[Turn]:
-    for line in path.read_text(errors="replace").splitlines():
+    for line in path.read_text(errors="replace", encoding="utf-8").splitlines():
         try:
             j = json.loads(line)
         except json.JSONDecodeError:
@@ -69,7 +69,7 @@ def read_claude(path: Path) -> Iterator[Turn]:
 
 def read_codex(path: Path) -> Iterator[Turn]:
     session, cwd = path.stem, ""
-    for line in path.read_text(errors="replace").splitlines():
+    for line in path.read_text(errors="replace", encoding="utf-8").splitlines():
         try:
             j = json.loads(line)
         except json.JSONDecodeError:
@@ -97,7 +97,7 @@ def read_opencode(storage: Path) -> Iterator[Turn]:
     sessions = {}
     for f in (storage / "session").glob("*/*.json"):
         try:
-            s = json.loads(f.read_text())
+            s = json.loads(f.read_text(encoding="utf-8"))
             sessions[s["id"]] = s.get("directory", "")
         except (json.JSONDecodeError, KeyError):
             continue
@@ -105,13 +105,13 @@ def read_opencode(storage: Path) -> Iterator[Turn]:
         sid = mdir.name
         for mf in sorted(mdir.glob("*.json")):
             try:
-                m = json.loads(mf.read_text())
+                m = json.loads(mf.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 continue
             texts = []
             for pf in sorted((storage / "part" / m.get("id", mf.stem)).glob("*.json")):
                 try:
-                    part = json.loads(pf.read_text())
+                    part = json.loads(pf.read_text(encoding="utf-8"))
                 except json.JSONDecodeError:
                     continue
                 if part.get("type") == "text":

@@ -159,7 +159,7 @@ class Config:
         if not (d / ".gitignore").exists():
             d.mkdir(parents=True, exist_ok=True)  # hooks race here; never fail on "already exists"
             # Never let agent state leak into the user's own commits.
-            (d / ".gitignore").write_text("*\n")
+            (d / ".gitignore").write_text("*\n", encoding="utf-8")
         return d
 
     def section(self, name: str) -> dict[str, Any]:
@@ -189,5 +189,5 @@ def init(root: Path) -> Path:
         raise ProjectError(f"refusing to set up keelyard in {root}. Hint: cd into a project folder first.")
     path = cfg.state / "config.toml"
     if not path.exists():
-        path.write_text(DEFAULT_CONFIG)
+        path.write_text(DEFAULT_CONFIG, encoding="utf-8")
     return path

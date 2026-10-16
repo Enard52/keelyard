@@ -35,7 +35,7 @@ class Row:
 def _claude(base: Path):
     for f in base.glob("*/*.jsonl"):
         seen = set()
-        for line in f.read_text(errors="replace").splitlines():
+        for line in f.read_text(errors="replace", encoding="utf-8").splitlines():
             try:
                 j = json.loads(line)
             except json.JSONDecodeError:
@@ -55,7 +55,7 @@ def _claude(base: Path):
 def _codex(base: Path):
     for f in base.rglob("*.jsonl"):
         model = "?"
-        for line in f.read_text(errors="replace").splitlines():
+        for line in f.read_text(errors="replace", encoding="utf-8").splitlines():
             try:
                 j = json.loads(line)
             except json.JSONDecodeError:
@@ -76,7 +76,7 @@ def _opencode(storage: Path):
 
     for f in (storage / "message").glob("*/*.json"):
         try:
-            m = json.loads(f.read_text())
+            m = json.loads(f.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
         t = m.get("tokens")

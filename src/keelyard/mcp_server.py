@@ -204,7 +204,7 @@ def recall(output_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9]{1,64}$", descr
     p = cfg.state / "raw" / output_id
     if not p.exists():
         raise ValueError(f"unknown output id {output_id!r}. Hint: use the id from the last line of run_compact output.")
-    return {"id": output_id, "output": p.read_text(errors="replace")}
+    return {"id": output_id, "output": p.read_text(errors="replace", encoding="utf-8")}
 
 
 @_tool(_ann("Outline a file", read_only=True))

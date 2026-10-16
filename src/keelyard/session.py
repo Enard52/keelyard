@@ -16,10 +16,10 @@ def clean(session_id: str | None) -> str:
 
 def set_current(cfg: Config, session_id: str | None) -> str:
     sid = clean(session_id)
-    (cfg.state / "current_session").write_text(sid)
+    (cfg.state / "current_session").write_text(sid, encoding="utf-8")
     return sid
 
 
 def current(cfg: Config) -> str:
     p = cfg.state / "current_session"
-    return clean(p.read_text().strip()) if p.exists() else "default"
+    return clean(p.read_text(encoding="utf-8").strip()) if p.exists() else "default"

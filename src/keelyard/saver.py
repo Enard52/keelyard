@@ -106,11 +106,11 @@ class ReadCache:
         self.blobs.mkdir(exist_ok=True)
 
     def _load(self) -> dict:
-        return json.loads(self.path.read_text()) if self.path.exists() else {}
+        return json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {}
 
     def _save(self, d: dict) -> None:
         tmp = self.path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
-        tmp.write_text(json.dumps(d))
+        tmp.write_text(json.dumps(d), encoding="utf-8")
         os.replace(tmp, self.path)  # atomic: concurrent hooks never see half a file
 
     def reset(self) -> None:

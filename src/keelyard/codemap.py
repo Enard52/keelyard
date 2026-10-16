@@ -152,7 +152,7 @@ def find_symbol(root: Path, name: str, limit: int = 20) -> str:
                 ALIASES.get(p.suffix, p.suffix) not in (".js", ".ts"):
             continue
         try:
-            for i, ln in enumerate(p.read_text(errors="replace").splitlines(), 1):
+            for i, ln in enumerate(p.read_text(errors="replace", encoding="utf-8").splitlines(), 1):
                 if short in ln and defs.search(ln):
                     hits.append(f"{rel}:{i}: {ln.strip()[:160]}")
                     if len(hits) >= limit:

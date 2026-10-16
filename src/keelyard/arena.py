@@ -88,7 +88,7 @@ def _changed(repo: Path) -> int:
 
 
 def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None) -> list[Run]:
-    spec = tomllib.loads(spec_path.read_text())
+    spec = tomllib.loads(spec_path.read_text(encoding="utf-8"))
     task = spec["task"]
     template = (spec_path.parent / task["repo"]).resolve()
     runs = int(task.get("runs", 1))
@@ -130,7 +130,7 @@ def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None) -> l
                                    round(u["cost"], 4) if u["cost"] is not None else None, _changed(repo), code, note))
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.json").write_text(json.dumps(
-        {"task": task, "generated": time.strftime("%Y-%m-%d %H:%M:%S %z"), "runs": [asdict(r) for r in results]}, indent=2))
+        {"task": task, "generated": time.strftime("%Y-%m-%d %H:%M:%S %z"), "runs": [asdict(r) for r in results]}, indent=2), encoding="utf-8")
     render(out_dir)
     return results
 
@@ -180,7 +180,7 @@ def render(out_dir: Path) -> Path:
     from . import __version__
     from .theme import page
 
-    data = json.loads((out_dir / "results.json").read_text())
+    data = json.loads((out_dir / "results.json").read_text(encoding="utf-8"))
     runs = data["runs"]
     rows = sorted(summarize(runs), key=lambda r: (-r["pass_rate"], (r["median_input"] or 0) + (r["median_output"] or 0)))
     e = html.escape

@@ -90,8 +90,8 @@ class Shadow:
         if (self.gitdir / "HEAD").exists():
             excl = self.gitdir / "info" / "exclude"
             try:
-                if excl.read_text() != EXCLUDE:  # older timelines: pick up new exclusions
-                    excl.write_text(EXCLUDE)
+                if excl.read_text(encoding="utf-8") != EXCLUDE:  # older timelines: pick up new exclusions
+                    excl.write_text(EXCLUDE, encoding="utf-8")
             except OSError:
                 pass
             return
@@ -107,14 +107,14 @@ class Shadow:
         self._git("config", "gc.auto", "0")
         excl = self.gitdir / "info" / "exclude"
         excl.parent.mkdir(exist_ok=True)
-        excl.write_text(EXCLUDE)
+        excl.write_text(EXCLUDE, encoding="utf-8")
 
     def steps(self) -> list[Step]:
         if not self.log.exists():
             return []
         out = []
         known = {f.name for f in fields(Step)}
-        for line in self.log.read_text(errors="replace").splitlines():
+        for line in self.log.read_text(errors="replace", encoding="utf-8").splitlines():
             try:
                 d = json.loads(line)
                 out.append(Step(**{k: v for k, v in d.items() if k in known}))

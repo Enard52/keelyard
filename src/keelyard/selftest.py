@@ -64,8 +64,8 @@ class _Stub(BaseHTTPRequestHandler):
 def _setup(tmp: Path, port: int) -> tuple[Path, dict]:
     proj = tmp / "shop"
     proj.mkdir()
-    (proj / "cart.py").write_text(CART)
-    (proj / "check_cart.py").write_text(TEST)
+    (proj / "cart.py").write_text(CART, encoding="utf-8")
+    (proj / "check_cart.py").write_text(TEST, encoding="utf-8")
     env = {**os.environ, "HOME": str(tmp / "home"), "XDG_DATA_HOME": str(tmp / "xdg"), "KEELYARD_ROOT": str(proj),
            "CLAUDE_CONFIG_DIR": str(tmp / "home" / ".claude"), "CODEX_HOME": str(tmp / "home" / ".codex"),
            "GIT_CONFIG_NOSYSTEM": "1", "NO_COLOR": "1"}
@@ -73,13 +73,14 @@ def _setup(tmp: Path, port: int) -> tuple[Path, dict]:
     (proj / ".keelyard").mkdir()
     (proj / ".keelyard" / "config.toml").write_text(
         f'[proof]\ntest_cmd = "{Path(sys.executable).as_posix()} check_cart.py"\n'
-        f'[models.cheap]\nprovider = "openai"\nbase_url = "http://127.0.0.1:{port}/v1"\nmodel = "stub"\n')
+        f'[models.cheap]\nprovider = "openai"\nbase_url = "http://127.0.0.1:{port}/v1"\nmodel = "stub"\n', encoding="utf-8")
     # a past session for memory_search to find
     past = tmp / "home" / ".claude" / "projects" / "shop"
     past.mkdir(parents=True)
     (past / "old.jsonl").write_text(json.dumps({
         "type": "assistant", "sessionId": "old", "cwd": str(proj), "timestamp": "2026-09-01T10:00:00Z",
-        "message": {"role": "assistant", "content": "Rounding bug: always round money with round(x, 2) after the discount."}}) + "\n")
+        "message": {"role": "assistant", "content": "Rounding bug: always round money with round(x, 2) after the discount."}}) + "\n",
+        encoding="utf-8")
     return proj, env
 
 
@@ -148,7 +149,7 @@ async def _agent(proj: Path, env: dict, rep: Report) -> None:
 
         # a wrong edit first, so there is something to rewind
         t0 = time.perf_counter()
-        (proj / "cart.py").write_text("def total(prices, discount=0):\n    return 0  # oops\n")
+        (proj / "cart.py").write_text("def total(prices, discount=0):\n    return 0  # oops\n", encoding="utf-8")
         _hook("PostToolUse", {**base, "tool_name": "Write", "tool_input": {"file_path": "cart.py"}}, env, proj)
         bad = await call("rewind_list", {})
         block = _hook("Stop", {**base}, env, proj)
@@ -157,11 +158,11 @@ async def _agent(proj: Path, env: dict, rep: Report) -> None:
 
         t0 = time.perf_counter()
         back = await call("rewind_to", {"step": bad["steps"][0]["step"]})
-        restored = (proj / "cart.py").read_text() == CART
+        restored = (proj / "cart.py").read_text(encoding="utf-8") == CART
         check("rewind: wrong edit undone", restored, f"restored #{back['restored']}, undo with #{back['safety_step']}", t0)
 
         t0 = time.perf_counter()
-        (proj / "cart.py").write_text(FIXED)
+        (proj / "cart.py").write_text(FIXED, encoding="utf-8")
         _hook("PostToolUse", {**base, "tool_name": "Edit", "tool_input": {"file_path": "cart.py"}}, env, proj)
         run = await call("proof_run_tests", {"phase": "after"})
         await call("proof_check", {"requirement_id": 1, "evidence": "test_discount passes: total([10,10],0.1)==18"})

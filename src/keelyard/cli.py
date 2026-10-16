@@ -111,7 +111,7 @@ def _parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="keelyard", usage="keelyard <command> [options]", description=OVERVIEW, formatter_class=fmt,
                                  epilog=EXIT_CODES + "\n\nRun `keelyard <command> --help` for examples. Every command accepts --json.")
     ap.add_argument("--version", action="version", version=f"keelyard {__version__}")
-    sub = ap.add_subparsers(dest="cmd", metavar="<command>", title="commands")
+    sub = ap.add_subparsers(dest="cmd", metavar="<command>", title="commands", prog="keelyard")
 
     def cmd(name, help, examples=None, leaf=True, **kw):
         return sub.add_parser(name, help=help, description=help, epilog=examples or EXAMPLES.get(name), formatter_class=fmt,
@@ -125,7 +125,7 @@ def _parser() -> argparse.ArgumentParser:
             return self.s.add_parser(name, parents=[jp], description=kw.get("help"), **kw)
 
     def group(parent, name, help):
-        s = parent.add_subparsers(dest=name, metavar="<action>", title="actions")
+        s = parent.add_subparsers(dest=name, metavar="<action>", title="actions", prog=parent.prog)
         s.required = True
         return _Group(s)
 
@@ -152,7 +152,7 @@ def _parser() -> argparse.ArgumentParser:
         p.add_argument("agent", nargs="?", choices=["claude", "codex", "opencode"])
         p.add_argument("--global", dest="glob", action="store_true", help=f"{verb} at user level (all agents if none named)")
 
-    r = group(cmd("rewind", "list, inspect and undo agent steps", leaf=False), "action", "")
+    r = group(cmd("rewind", "list, inspect and undo agent steps"), "action", "")
     r.s.required = False  # bare `keelyard rewind` lists steps
     x = r.add_parser("list", help="list snapshots")
     x.add_argument("-i", "--interactive", action="store_true", help="open the timeline browser")
@@ -166,7 +166,8 @@ def _parser() -> argparse.ArgumentParser:
     x.add_argument("dest", type=Path)
     r.add_parser("snap", help="take a snapshot now")
 
-    r = group(cmd("proof", "the evidence an agent collected before saying done", leaf=False), "action", "")
+    r = group(cmd("proof", "the evidence an agent collected before saying done"), "action", "")
+    r.s.required = False  # bare `keelyard proof` shows the status
     r.add_parser("status", help="what is proven and what is missing")
     x = r.add_parser("add", help="add requirements")
     x.add_argument("items", nargs="+")
@@ -402,7 +403,7 @@ def _checks() -> list[tuple[str, str, str, str]]:
             rows.append(("project", "skip", "timeline", "no snapshots yet"))
         log = cfg.state / "hook.log"
         if log.exists() and log.stat().st_size:
-            last = log.read_text(errors="replace").strip().splitlines()[0][:100]
+            last = log.read_text(errors="replace", encoding="utf-8").strip().splitlines()[0][:100]
             rows.append(("project", "warn", "hook errors", f"see .keelyard/hook.log ({last})"))
         if cfg.raw.get("models", {}).get("strong", {}).get("model") == "set-me":
             rows.append(("project", "skip", "models.strong", "not set (only swarm/route use it)"))
@@ -410,11 +411,23 @@ def _checks() -> list[tuple[str, str, str, str]]:
     for x in AGENTS:
         if installed(x, root):
             rows.append(("agents", "ok", x, "wired" + ("" if x in found else " (agent itself not found on PATH)")))
+            if x == "codex" and not _codex_mcp_registered():
+                rows.append(("agents", "warn", "codex mcp", "hooks are wired but ~/.codex/config.toml has no [mcp_servers.keelyard]. "
+                             "Hint: run `keelyard install codex --global`, or paste the block `keelyard install codex` printed"))
         elif x in found:
             rows.append(("agents", "warn", x, f"installed but not wired. Hint: keelyard install {x}"))
         else:
             rows.append(("agents", "skip", x, "not installed"))
     return rows
+
+
+def _codex_mcp_registered() -> bool:
+    import os
+    home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+    try:
+        return "[mcp_servers.keelyard]" in (home / "config.toml").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
 
 
 def do_doctor(a):
@@ -582,6 +595,8 @@ def do_proof(a):
     cfg = _cfg()
     pf = Proof(cfg, session.current(cfg))
     h = _human(a)
+    if a.action is None:
+        a.action = "status"
     if a.action == "status":
         gaps, state = pf.missing(), pf.state()
         if h:
@@ -655,7 +670,7 @@ def do_recall(a):
     p = _cfg().state / "raw" / a.id
     if not a.id.isalnum() or not p.exists():
         raise Fail(f"no saved output {a.id!r}. Hint: use the id printed at the end of `keelyard run` output.")
-    text = p.read_text(errors="replace")
+    text = p.read_text(errors="replace", encoding="utf-8")
     if _human(a):
         sys.stdout.write(text)
     return 0, {"id": a.id, "output": text}
@@ -741,7 +756,7 @@ def do_swarm(a):
             print(json.dumps(tasks, indent=2))
         return 0, {"tasks": tasks}
     try:
-        raw = json.loads(a.tasks.read_text())
+        raw = json.loads(a.tasks.read_text(encoding="utf-8"))
         tasks = [Task(**t) for t in raw]
     except FileNotFoundError:
         raise Fail(f"{a.tasks}: no such file") from None
@@ -842,7 +857,7 @@ def _print_json(data) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    for stream in (sys.stdout, sys.stderr):  # Windows pipes default to cp1252, which cannot print → or …
+    for stream in (sys.stdin, sys.stdout, sys.stderr):  # Windows pipes default to cp1252: → … and non-Latin text break
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):

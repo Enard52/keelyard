@@ -197,7 +197,7 @@ def has_tests_nearby(root: Path, rel: str) -> bool:
         return (root / p.parent / f"{stem}_test.go").exists()
     if ext == ".rs":
         try:
-            if "#[cfg(test)]" in (root / p).read_text(errors="replace"):
+            if "#[cfg(test)]" in (root / p).read_text(errors="replace", encoding="utf-8"):
                 return True
         except OSError:
             pass
@@ -220,7 +220,7 @@ class Nudger:
 
     def _load(self) -> dict:
         try:
-            d = json.loads(self.path.read_text())
+            d = json.loads(self.path.read_text(encoding="utf-8"))
             return d if d.get("session") == self.session else {"session": self.session, "count": 0, "last": {}}
         except (OSError, ValueError):
             return {"session": self.session, "count": 0, "last": {}}
@@ -238,7 +238,7 @@ class Nudger:
         d["count"] += 1
         d["last"][k] = now
         tmp = self.path.with_suffix(f".{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(d))
+        tmp.write_text(json.dumps(d), encoding="utf-8")
         os.replace(tmp, self.path)
         return True
 
