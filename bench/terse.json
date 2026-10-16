@@ -1,58 +1,190 @@
 {
- "model": "qwen-coder-1.5b",
- "rule_tokens": 33,
- "old_rule_tokens": 22,
- "variants": {
-  "none": {
-   "output_tokens": 2097,
-   "correct": 10,
-   "cases": 10,
-   "per_case": [
-    187,
-    183,
-    243,
-    408,
-    228,
-    155,
-    237,
-    291,
-    70,
-    95
-   ]
+ "cases": 32,
+ "seeds": [
+  1,
+  2
+ ],
+ "note": "merged from terse_screen_qwen05.json, terse_confirm.json, terse_v67.json; v7 shipped",
+ "rules": {
+  "none": "",
+  "old": "Be terse: no preamble, no restating the question, no summary of what you are about to do.",
+  "long": "Reply with results only: no preamble, filler, restating or recap. Keep code, commands, paths, numbers and errors exact and complete.",
+  "v1": "Answer with results only. Keep code, commands and errors exact.",
+  "v2": "Terse: results only, no recap. Code, paths, numbers, errors exact and complete.",
+  "v3": "Results only, no filler. Never drop code, numbers or error names.",
+  "v4": "Be terse: answer first, no preamble or recap; keep code and facts complete.",
+  "v5": "Be terse, but keep every code line, command, number and error name.",
+  "shipped": "Reply with results only: no preamble, filler, restating or recap. Keep code, commands, paths, numbers and errors exact and complete.",
+  "v6": "Be terse. Keep code and facts.",
+  "v7": "Be terse: no preamble or recap. Keep code exact."
+ },
+ "results": {
+  "qwen2.5-0.5b": {
+   "none": {
+    "input": 2728,
+    "output": 12104,
+    "facts": 51,
+    "of": 64,
+    "total": 14832
+   },
+   "old": {
+    "input": 4136,
+    "output": 5308,
+    "facts": 44,
+    "of": 64,
+    "total": 9444
+   },
+   "long": {
+    "input": 4584,
+    "output": 3953,
+    "facts": 45,
+    "of": 64,
+    "total": 8537
+   },
+   "v1": {
+    "input": 3560,
+    "output": 2772,
+    "facts": 43,
+    "of": 64,
+    "total": 6332
+   },
+   "v2": {
+    "input": 4008,
+    "output": 4114,
+    "facts": 44,
+    "of": 64,
+    "total": 8122
+   },
+   "v3": {
+    "input": 3688,
+    "output": 5818,
+    "facts": 44,
+    "of": 64,
+    "total": 9506
+   },
+   "v4": {
+    "input": 3816,
+    "output": 5353,
+    "facts": 49,
+    "of": 64,
+    "total": 9169
+   },
+   "v5": {
+    "input": 3752,
+    "output": 4330,
+    "facts": 45,
+    "of": 64,
+    "total": 8082
+   },
+   "shipped": {
+    "input": 4584,
+    "output": 4145,
+    "facts": 47,
+    "of": 64,
+    "total": 8729
+   },
+   "v6": {
+    "input": 3240,
+    "output": 5550,
+    "facts": 43,
+    "of": 64,
+    "total": 8790
+   },
+   "v7": {
+    "input": 3496,
+    "output": 4775,
+    "facts": 45,
+    "of": 64,
+    "total": 8271
+   }
   },
-  "old 'Be terse'": {
-   "output_tokens": 735,
-   "correct": 8,
-   "cases": 10,
-   "per_case": [
-    57,
-    3,
-    3,
-    253,
-    20,
-    114,
-    161,
-    38,
-    20,
-    66
-   ]
+  "llama3.2-1b": {
+   "old": {
+    "input": 5526,
+    "output": 1358,
+    "facts": 45,
+    "of": 64,
+    "total": 6884
+   },
+   "shipped": {
+    "input": 5974,
+    "output": 4825,
+    "facts": 52,
+    "of": 64,
+    "total": 10799
+   },
+   "v4": {
+    "input": 5206,
+    "output": 3319,
+    "facts": 47,
+    "of": 64,
+    "total": 8525
+   },
+   "v5": {
+    "input": 5142,
+    "output": 7076,
+    "facts": 51,
+    "of": 64,
+    "total": 12218
+   },
+   "v6": {
+    "input": 4630,
+    "output": 4343,
+    "facts": 55,
+    "of": 64,
+    "total": 8973
+   },
+   "v7": {
+    "input": 4886,
+    "output": 2136,
+    "facts": 49,
+    "of": 64,
+    "total": 7022
+   }
   },
-  "terse rule": {
-   "output_tokens": 1234,
-   "correct": 9,
-   "cases": 10,
-   "per_case": [
-    109,
-    3,
-    3,
-    486,
-    62,
-    148,
-    178,
-    170,
-    20,
-    55
-   ]
+  "qwen-coder-1.5b": {
+   "old": {
+    "input": 4136,
+    "output": 3589,
+    "facts": 53,
+    "of": 64,
+    "total": 7725
+   },
+   "shipped": {
+    "input": 4584,
+    "output": 7758,
+    "facts": 51,
+    "of": 64,
+    "total": 12342
+   },
+   "v4": {
+    "input": 3816,
+    "output": 7317,
+    "facts": 59,
+    "of": 64,
+    "total": 11133
+   },
+   "v5": {
+    "input": 3752,
+    "output": 5157,
+    "facts": 56,
+    "of": 64,
+    "total": 8909
+   },
+   "v6": {
+    "input": 3240,
+    "output": 6307,
+    "facts": 60,
+    "of": 64,
+    "total": 9547
+   },
+   "v7": {
+    "input": 3496,
+    "output": 4639,
+    "facts": 61,
+    "of": 64,
+    "total": 8135
+   }
   }
  }
 }

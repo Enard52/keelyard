@@ -1,1 +1,1 @@
-Reply with results only: no preamble, filler, restating or recap. Keep code, commands, paths, numbers and errors exact and complete.
+Be terse: no preamble or recap. Keep code exact.

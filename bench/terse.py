@@ -1,72 +1,118 @@
-"""Does the terse-output rule cut output tokens without dropping what matters? $0: local Ollama model only.
+"""Which terse-output rule saves the most tokens (input + output) without losing facts? $0: local Ollama models only.
 
-Runs each prompt with three system prompts: no rule, the old one-line "Be terse" rule, and the shipped rule
-(src/keelyard/adapters/guides/terse.md). Counts output tokens as reported by Ollama (eval_count), and checks
-every answer still contains the facts the prompt needs (an identifier, a fix, an error name).
-Needs `ollama serve` with a local model; skips otherwise. Writes bench/terse.json.
+Every prompt runs once per (model, rule, seed). Tokens are Ollama's own counts: prompt_eval_count (input, so the
+rule's real cost is included) and eval_count (output). "Facts" = the answer contains what the prompt needs
+(an identifier, a fix, an error name); one point per prompt. Needs `ollama serve`; skips otherwise.
+Writes bench/terse.json.
 
-    python bench/terse.py [model]
+    python bench/terse.py [--models a,b] [--seeds 1,2,3] [--rules none,old,shipped,...]
 """
 from __future__ import annotations
 
+import argparse
 import json
-import sys
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RULE = (ROOT / "src/keelyard/adapters/guides/terse.md").read_text(encoding="utf-8").strip()
-OLD = "Be terse: no preamble, no restating the question, no summary of what you are about to do."
+SHIPPED = (ROOT / "src/keelyard/adapters/guides/terse.md").read_text(encoding="utf-8").strip()
 CART = (ROOT / "examples/arena/discount/repo/cart.py").read_text(encoding="utf-8")
+BASE = "You are a coding agent in the user's repository."
 
-# (prompt, words that must appear in a correct answer; any one of each tuple)
+RULES = {
+    "none": "",
+    "old": "Be terse: no preamble, no restating the question, no summary of what you are about to do.",
+    "long": ("Reply with results only: no preamble, filler, restating or recap. "
+             "Keep code, commands, paths, numbers and errors exact and complete."),
+    "v1": "Answer with results only. Keep code, commands and errors exact.",
+    "v2": "Terse: results only, no recap. Code, paths, numbers, errors exact and complete.",
+    "v3": "Results only, no filler. Never drop code, numbers or error names.",
+    "v4": "Be terse: answer first, no preamble or recap; keep code and facts complete.",
+    "v5": "Be terse, but keep every code line, command, number and error name.",
+    "v6": "Be terse. Keep code and facts.",
+    "v7": "Be terse: no preamble or recap. Keep code exact.",
+    "shipped": SHIPPED,
+}
+
+# (prompt, groups of words: the answer must contain one word of every group)
 CASES = [
     (f"{CART}\nMake total() apply coupon SAVE10 as 10% off. Show the new function.", [("def total",), ("0.9", "10", "0.1")]),
     (f"{CART}\nWhat does total([5, 5]) return?", [("10",)]),
     (f"{CART}\nUnknown coupons should raise. Which exception type fits best?", [("ValueError", "KeyError")]),
+    (f"{CART}\nWrite a pytest test for total([1, 2]).", [("def test",), ("assert",), ("3",)]),
+    (f"{CART}\nAdd a type hint for prices. Show the signature line.", [("def total",), ("list", "List", "Iterable", "Sequence")]),
     ("pytest says: ModuleNotFoundError: No module named 'cart'. Likely cause and fix?",
-     [("path", "PYTHONPATH", "directory", "rootdir", "conftest")]),
+     [("path", "PYTHONPATH", "directory", "rootdir", "conftest", "install")]),
     ("Write a Python function is_even(n).", [("def is_even",), ("% 2",)]),
+    ("Write a Python function that reverses a string s.", [("def",), ("[::-1]", "reversed")]),
+    ("Write a JavaScript function add(a, b).", [("function add", "add =", "const add"), ("a + b",)]),
     ("git: how do I undo my last commit but keep the changes?", [("reset",), ("--soft", "HEAD~1", "HEAD^")]),
-    ("Explain in short what a Python list comprehension is, with one example.", [("[",), ("for",)]),
-    ("TypeError: unsupported operand type(s) for +: 'int' and 'str'. What is wrong?", [("str", "int")]),
-    ("Rename variable x to count in: x = 0\nfor i in range(3): x += i\nprint(x)", [("count = 0",), ("count +=",)]),
+    ("git: how do I create and switch to a new branch called fix?", [("checkout -b fix", "switch -c fix")]),
+    ("git: show the files changed in the last commit.", [("git show", "git diff", "git log")]),
     ("How do I run only one pytest test called test_save10?", [("-k", "::test_save10")]),
+    ("How do I install the requests package with pip?", [("pip install requests",)]),
+    ("Shell: count lines in file a.txt.", [("wc -l",)]),
+    ("Shell: find all .py files under src.", [("find", "glob", "**"), (".py",)]),
+    ("TypeError: unsupported operand type(s) for +: 'int' and 'str'. What is wrong?", [("str", "int")]),
+    ("KeyError: 'price' when reading item['price']. Fix?", [("get(", "in item", "'price' in", "try")]),
+    ("IndexError: list index out of range in xs[3] when xs has 3 items. Why?", [("0", "zero"), ("2", "len")]),
+    ("AttributeError: 'NoneType' object has no attribute 'split'. Likely cause?", [("None",)]),
+    ("RecursionError: maximum recursion depth exceeded. Most common cause?", [("base case", "terminat", "stop")]),
+    ("JSONDecodeError: Expecting value: line 1 column 1. What does it usually mean?", [("empty", "not json", "not valid", "invalid", "HTML")]),
+    ("Rename variable x to count in: x = 0\nfor i in range(3): x += i\nprint(x)", [("count = 0",), ("count +=",)]),
+    ("Fix the bug: def area(r): return 3.14 * r * 2", [("r * r", "r ** 2", "r**2", "pow(r")]),
+    ("Fix the bug: def last(xs): return xs[len(xs)]", [("-1", "len(xs) - 1", "len(xs)-1")]),
+    ("Fix the bug: if x = 5: print(x)", [("==",)]),
+    ("What HTTP status code means Not Found?", [("404",)]),
+    ("What does SQL 'SELECT COUNT(*) FROM users' return?", [("number", "count", "rows")]),
+    ("Python: read a file notes.txt into a string.", [("open(", "read_text"), ("read",)]),
+    ("Python: sort a list of dicts people by key 'age'.", [("sort", "sorted"), ("age",)]),
+    ("Explain in short what a Python list comprehension is, with one example.", [("[",), ("for",)]),
+    ("Regex to match a 4-digit year.", [("\\d{4}", "[0-9]{4}")]),
 ]
 
 
-def ask(model: str, system: str, prompt: str) -> tuple[int, str]:
+def ask(model: str, system: str, prompt: str, seed: int) -> tuple[int, int, str]:
     body = {"model": model, "prompt": prompt, "system": system, "stream": False,
-            "options": {"temperature": 0, "seed": 1, "num_predict": 700}}
+            "options": {"temperature": 0.3, "seed": seed, "num_predict": 600}}
     req = urllib.request.Request("http://localhost:11434/api/generate", json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
+    with urllib.request.urlopen(req, timeout=600) as r:
         d = json.loads(r.read())
-    return int(d.get("eval_count", 0)), d.get("response", "")
+    return int(d.get("prompt_eval_count", 0)), int(d.get("eval_count", 0)), d.get("response", "")
 
 
-def correct(answer: str, need) -> bool:
+def facts(answer: str, need) -> bool:
     return all(any(w.lower() in answer.lower() for w in group) for group in need)
 
 
 def main() -> None:
-    model = sys.argv[1] if len(sys.argv) > 1 else "qwen-coder-1.5b"
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--models", default="qwen-coder-1.5b")
+    ap.add_argument("--seeds", default="1,2,3")
+    ap.add_argument("--rules", default=",".join(RULES))
+    ap.add_argument("--out", default=str(ROOT / "bench" / "terse.json"))
+    a = ap.parse_args()
     try:
         urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3)
     except OSError:
         print("ollama is not running: skipped")
         return
-    base = "You are a coding agent in the user's repository."
-    variants = {"none": base, "old 'Be terse'": f"{base}\n{OLD}", "terse rule": f"{base}\n{RULE}"}
-    res: dict = {"model": model, "rule_tokens": round(len(RULE) / 4), "old_rule_tokens": round(len(OLD) / 4), "variants": {}}
-    for name, system in variants.items():
-        out = [ask(model, system, p) for p, _ in CASES]
-        res["variants"][name] = {"output_tokens": sum(n for n, _ in out),
-                                 "correct": sum(correct(a, need) for (n, a), (_, need) in zip(out, CASES, strict=True)),
-                                 "cases": len(CASES), "per_case": [n for n, _ in out]}
-    (ROOT / "bench" / "terse.json").write_text(json.dumps(res, indent=1) + "\n", encoding="utf-8")
-    for name, v in res["variants"].items():
-        print(f"{name:16} output tokens {v['output_tokens']:5}  correct {v['correct']}/{v['cases']}")
-    print(f"rule costs ~{res['rule_tokens']} input tokens per request (old line ~{res['old_rule_tokens']})")
+    models, seeds, rules = a.models.split(","), [int(s) for s in a.seeds.split(",")], a.rules.split(",")
+    res: dict = {"cases": len(CASES), "seeds": seeds, "rules": {r: RULES[r] for r in rules}, "results": {}}
+    for model in models:
+        for rule in rules:
+            system = f"{BASE}\n{RULES[rule]}".strip()
+            jobs = [(p, need, s) for s in seeds for p, need in CASES]
+            with ThreadPoolExecutor(2) as ex:
+                outs = list(ex.map(lambda j, m=model, sy=system: ask(m, sy, j[0], j[2]), jobs))
+            r = {"input": sum(o[0] for o in outs), "output": sum(o[1] for o in outs),
+                 "facts": sum(facts(o[2], j[1]) for o, j in zip(outs, jobs, strict=True)), "of": len(jobs)}
+            r["total"] = r["input"] + r["output"]
+            res["results"].setdefault(model, {})[rule] = r
+            print(f"{model:18} {rule:8} in {r['input']:6} out {r['output']:6} total {r['total']:6} facts {r['facts']}/{r['of']}",
+                  flush=True)
+            Path(a.out).write_text(json.dumps(res, indent=1) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

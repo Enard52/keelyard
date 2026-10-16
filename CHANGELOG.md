@@ -4,7 +4,8 @@
 
 ### Ideas from popular agent tools, rebuilt from scratch (Oct 16, 2026)
 - Terse-output rule in every preset (CLAUDE.md, AGENTS.md); `--no-terse` / `KEELYARD_TERSE=0` to opt out;
-  `bench/terse.py` measures it on a local model
+  `bench/terse.py` measures it on a local model. Rule shortened to ~12 tokens after a 3-model, 32-prompt x 2-seed
+  comparison (fewer total tokens than the old line, more facts than the previous rule)
 - Lossless JSON compaction in the output filters
 - One hint when the same test failure returns after a code change (hooks, auto-test, `proof_run_tests`)
 - Test: the session brief is byte-stable (prompt cache)

@@ -2,24 +2,27 @@
 
 Machine: 8 vCPU Linux box, no GPU, Python 3.13. Measured on 2026-10-12. Token counts are `chars / 4`.
 
-## Terse-output rule, measured on a local model (Oct 16, 2026)
+## Terse-output rule, measured on local models (Oct 17, 2026)
 
-`python bench/terse.py` with Ollama `qwen-coder-1.5b` (1.8B, Q4), temperature 0, 10 coding prompts, one run each.
-Output tokens are Ollama's `eval_count`. "Correct" = the answer contains the facts the prompt needs
-(identifier, fix, error name). Raw numbers: `bench/terse.json`.
+`python bench/terse.py --models qwen2.5-0.5b,llama3.2-1b,qwen-coder-1.5b --seeds 1,2` (Ollama, Q4, temperature 0.3):
+32 coding prompts x 2 seeds = 64 answers per model and rule. Tokens are Ollama's own counts, input
+(`prompt_eval_count`, so the rule's cost is included) + output (`eval_count`). "Facts" = the answer contains
+what the prompt needs (identifier, fix, error name). Raw numbers: `bench/terse.json`. $0, no paid calls.
 
-| system prompt | output tokens | correct |
+| rule | total tokens (3 models) | facts (of 192) |
 |---|---:|---:|
-| no rule | 2,097 | 10/10 |
-| old one-line "Be terse" rule | 735 | 8/10 |
-| shipped rule (`guides/terse.md`, ~33 tokens) | 1,234 (−41%) | 9/10 |
+| old "Be terse: no preamble, no restating the question, no summary of what you are about to do." | 24,053 | 142 |
+| previous rule ("Reply with results only: ... exact and complete.", ~33 tokens) | 31,870 | 150 |
+| **shipped: "Be terse: no preamble or recap. Keep code exact."** (~12 tokens) | **23,428 (−2.6% vs old)** | **155** |
+| "Be terse. Keep code and facts." | 27,310 | 158 |
+| "Be terse: answer first, no preamble or recap; keep code and facts complete." | 28,827 | 155 |
 
-- The rule costs about 33 input tokens per request (11 more than the old line it replaces) and saved about 86
-  output tokens per answer here, so it pays for itself on the first answer.
-- The old line saved more but dropped required facts twice; the shipped rule says to keep code, commands,
-  paths, numbers and errors exact and complete.
-- One answer still lost a needed fact with the rule; n=10 on a 1.8B model is a small sample. Not measured with
-  Claude or GPT models (no paid calls).
+Per model (total / facts): qwen2.5-0.5b old 9,444/44, shipped 8,271/45; llama3.2-1b old 6,884/45,
+previous 10,799/52, shipped 7,022/49; qwen-coder-1.5b old 7,725/53, previous 12,342/51, shipped 8,135/61.
+
+- The shipped rule beats the old line on total tokens and the previous rule on facts summed over three models,
+  but not on every model: on llama3.2-1b it uses 2% more tokens than the old line and keeps fewer facts than the
+  previous rule. The token margin over the old line is small. Not measured with Claude or GPT models.
 - Lossless JSON compaction: pretty `gh search repos --json` output 2,121 → 1,236 tokens (−42%), decoded back
   exactly (`bench/mechanisms.py`). An already-minified GitHub issue list shrank only 3%.
 - The repeated-failure hint (about 40 tokens, only when it fires) was not measured for savings.

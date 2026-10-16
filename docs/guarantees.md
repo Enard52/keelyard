@@ -50,10 +50,10 @@ It is not a sandbox. This page lists exactly what holds and where the limits are
 | work state (`work_state`, `keelyard state`) | re-deriving decisions after a compaction | every decision needs a ref (`path:line`, `cmd: ...`, `#proof item`), validated when added and re-checked on every render; stale refs are marked STALE | it records what the agent writes down; it does not infer decisions |
 | tools per task (`[mcp].tools = "lazy"`) | tool schemas sent every request | `tool_search` finds every hidden tool, `tool_call` runs it; lazy falls back to `core` if it is not smaller | each on-demand use costs about 309 tokens; past about 4 distinct hidden tools a session is cheaper with `core`, so `core` is the default |
 
-- Every preset adds a ~33-token terse-output rule to CLAUDE.md/AGENTS.md (results only; code, commands, paths,
-  numbers and errors exact and complete). Opt out: `keelyard init --no-terse` or `KEELYARD_TERSE=0`. It cut output
-  tokens 41% on a local 1.8B model (9/10 answers kept every required fact vs 10/10 without it): not a guarantee
-  for other models.
+- Every preset adds a ~12-token terse-output rule to CLAUDE.md/AGENTS.md ("Be terse: no preamble or recap. Keep
+  code exact."). Opt out: `keelyard init --no-terse` or `KEELYARD_TERSE=0`. On three local 0.5-1.8B models it used
+  2.6% fewer total tokens than the old "Be terse" line and kept more required facts (155/192 vs 142): not a
+  guarantee for other models or for every model (`BENCHMARKS.md`).
 - JSON output is compacted only losslessly (minified, same-key lists as columns/rows) and only when smaller.
 - A failing test run identical to an earlier failure on different code adds one ~40-token hint; nothing otherwise.
 - The lean preset saves tokens partly by **turning tools off** (9 OpenCode built-ins, keelyard's MCP list).
