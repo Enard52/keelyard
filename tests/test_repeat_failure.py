@@ -26,7 +26,9 @@ def test_hint_only_when_same_failure_after_a_change(cfg, project):
     (project / "app.py").write_text("def add(a, b):\n    return a * b + 1\n")
     third = pf.run_tests("after", cmd)
     hint = pf.repeat_hint(third)
-    assert hint and "same failure" in hint and len(hint) // 4 < 50
+    runs = pf.load().test_runs
+    assert hint, [(r.get("tree"), r["exit"], failure_signature(r["tail"])) for r in runs]
+    assert "same failure" in hint and len(hint) // 4 < 50
     (project / "app.py").write_text("def add(a, b):\n    return a + b\n")
     assert pf.repeat_hint(pf.run_tests("after", cmd)) is None  # passing
 
