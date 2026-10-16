@@ -386,8 +386,8 @@ def tool_search(
     query: Annotated[str, Field(description='What you want to do, e.g. "undo my last edit" or "screenshot".')],
     limit: Annotated[int, Field(ge=1, le=10, description="Max tools returned.")] = 3,
 ) -> dict[str, Any]:
-    """Find a keelyard tool that is not loaded yet. Returns name, description and input schema;
-    run it with tool_call(name, arguments)."""
+    """Find a keelyard tool that is not loaded yet: the best match with its input schema, then other names.
+    Run it with tool_call(name, arguments)."""
     pool = _ALL or getattr(getattr(mcp, "_tool_manager", None), "_tools", {})
     words = set(re.findall(r"[a-z]{3,}", query.lower()))
     scored = []
@@ -399,8 +399,10 @@ def tool_search(
         if score:
             scored.append((-score, name, t))
     scored.sort(key=lambda x: (x[0], x[1]))
+    # full schema for the best match only; the others get one line (load one with a more specific query)
     found = [{"name": n, "description": (t.description or "").strip(), "input_schema": _strip_titles(t.parameters)}
-             for _, n, t in scored[:limit]]
+             if k == 0 else {"name": n, "description": (t.description or "").strip().split("\n")[0][:120]}
+             for k, (_, n, t) in enumerate(scored[:limit])]
     return {"query": query, "tools": found, "remaining": max(0, len(scored) - limit)}
 
 
