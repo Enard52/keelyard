@@ -50,10 +50,10 @@ class InstallError(RuntimeError):
 
 
 def _read_json(path: Path) -> dict:
-    if not path.exists() or not path.read_text().strip():
+    if not path.exists() or not path.read_text(encoding="utf-8").strip():
         return {}
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except ValueError as e:
         raise InstallError(f"{path} is not valid JSON ({e.msg}, line {e.lineno}). "
                            "Hint: fix or remove that file, then run `keelyard init` again. Nothing was changed.") from None
@@ -65,7 +65,7 @@ def _read_json(path: Path) -> dict:
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".keelyard-tmp")
-    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     tmp.replace(path)
 
 
@@ -120,7 +120,7 @@ def installed(agent: str, root: Path) -> bool:
         return any((root / ".opencode" / d / "keelyard.js").exists() for d in ("plugins", "plugin"))
     path = root / FILES[agent][0][0]
     try:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return False
     return "keelyard" in text and " hook " in text
@@ -177,7 +177,7 @@ def _preset_file(root: Path) -> Path:
 def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
     """Write the preset's agent settings and remember exactly what was added, so uninstall can take it back."""
     pf = _preset_file(root)
-    rec = json.loads(pf.read_text()) if pf.exists() else {}
+    rec = json.loads(pf.read_text(encoding="utf-8")) if pf.exists() else {}
     rec["preset"] = preset
     added = rec.setdefault("added", {})
     done = []
@@ -208,7 +208,7 @@ def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
         added["claude_env"] = sorted(set(added.get("claude_env", [])) | set(keys))
         done.append(".claude/settings.json (lean env: capped tool output, no extra model calls)")
     pf.parent.mkdir(parents=True, exist_ok=True)
-    pf.write_text(json.dumps(rec, indent=1))
+    pf.write_text(json.dumps(rec, indent=1), encoding="utf-8")
     return done
 
 
@@ -216,7 +216,7 @@ def _remove_preset(agent: str, root: Path) -> list[str]:
     pf = _preset_file(root)
     if not pf.exists():
         return []
-    rec = json.loads(pf.read_text())
+    rec = json.loads(pf.read_text(encoding="utf-8"))
     added, done = rec.get("added", {}), []
     if agent == "opencode" and added.pop("opencode_build", None):
         path = root / "opencode.json"
@@ -239,7 +239,7 @@ def _remove_preset(agent: str, root: Path) -> list[str]:
         _write_json(path, data)
         done.append(".claude/settings.json (lean env)")
     if added:
-        pf.write_text(json.dumps(rec, indent=1))
+        pf.write_text(json.dumps(rec, indent=1), encoding="utf-8")
     else:
         pf.unlink()
     return done
@@ -252,7 +252,7 @@ def opencode_mcp() -> bool:
 
 
 def _plugin_js() -> str:
-    js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text()
+    js = resources.files("keelyard.adapters").joinpath("opencode_plugin.js").read_text(encoding="utf-8")
     js = js.replace('const KEELYARD = "keelyard";', f"const KEELYARD = {json.dumps(_exe_path())};", 1)
     return js.replace("const MCP = false;", f"const MCP = {'true' if opencode_mcp() else 'false'};", 1)
 
@@ -336,6 +336,7 @@ def install(agent: str, root: Path, preset: str = "balanced") -> list[str]:
     if preset not in PRESETS:
         raise InstallError(f"unknown preset {preset!r}. Hint: choose one of {', '.join(PRESETS)}.")
     _PRESET = preset
+    _remember_originals(agent, root)
     try:
         return _install(agent, root) + _apply_preset(agent, root, preset)
     finally:
@@ -360,7 +361,7 @@ def _install(agent: str, root: Path) -> list[str]:
             legacy.unlink()
         dest = root / ".opencode" / "plugins" / "keelyard.js"
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(_plugin_js())
+        dest.write_text(_plugin_js(), encoding="utf-8")
         done.append(".opencode/plugins/keelyard.js (events)")
         if opencode_mcp():
             _merge_json(root / "opencode.json", "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
@@ -396,7 +397,60 @@ def uninstall(agent: str, root: Path) -> list[str]:
         if agent == "opencode" and plugin.exists():
             plugin.unlink()
             done.append(f".opencode/{d}/keelyard.js")
-    return done + uninstall_guides(agent, root)
+    done += uninstall_guides(agent, root)
+    _restore_originals(agent, root)
+    return done
+
+
+TOUCHED = {"claude": [".claude/settings.json", ".mcp.json"], "codex": [".codex/hooks.json"], "opencode": ["opencode.json"]}
+EMPTY_DIRS = {"claude": [".claude/commands", ".claude/skills", ".claude"], "codex": [".codex"],
+              "opencode": [".opencode/plugins", ".opencode/plugin", ".opencode/command", ".opencode/agent", ".opencode"]}
+ABSENT = "\0keelyard: file did not exist\0"
+
+
+def _original(root: Path, rel: str) -> Path:
+    return root / ".keelyard" / "originals" / (rel.replace("/", "__") + ".orig")
+
+
+def _remember_originals(agent: str, root: Path) -> None:
+    """Before the first install, keep each config file's exact bytes so uninstall can give them back untouched."""
+    for rel in TOUCHED[agent]:
+        keep = _original(root, rel)
+        if keep.exists():
+            continue
+        keep.parent.mkdir(parents=True, exist_ok=True)
+        src = root / rel
+        keep.write_text(src.read_text(encoding="utf-8") if src.exists() else ABSENT, encoding="utf-8")
+
+
+def _restore_originals(agent: str, root: Path) -> None:
+    """After keelyard's entries are stripped: a file keelyard created and left empty is deleted, a file that is
+    back to its original content gets its original formatting back, and empty folders keelyard made go away.
+    A file the user changed since install is left alone."""
+    for rel in TOUCHED[agent]:
+        keep, path = _original(root, rel), root / rel
+        if not keep.exists():
+            continue
+        orig = keep.read_text(encoding="utf-8")
+        try:
+            cur = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        except ValueError:
+            continue
+        if orig == ABSENT:
+            if cur == {}:
+                path.unlink()
+        else:
+            try:
+                same = cur == json.loads(orig)
+            except ValueError:
+                same = False
+            if same:
+                path.write_text(orig, encoding="utf-8")
+        keep.unlink()
+    for rel in EMPTY_DIRS[agent]:
+        d = root / rel
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
 
 
 # --------------------------------------------------------------------------- global (user-level) install
@@ -495,7 +549,7 @@ def install_global(agent: str, home: Path | None = None) -> list[str]:
         for k in ("opencode_json", "opencode_md"):
             _backup(p[k])
         p["opencode_plugin"].parent.mkdir(parents=True, exist_ok=True)
-        p["opencode_plugin"].write_text(_plugin_js())
+        p["opencode_plugin"].write_text(_plugin_js(), encoding="utf-8")
         if opencode_mcp():
             _merge_json(p["opencode_json"], "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
         _set_block(p["opencode_md"], rules if opencode_mcp() else _guide("agents_block_lean.md"))
@@ -555,14 +609,14 @@ def _marker() -> Path:
 
 def _set_global_marker(agent: str, on: bool) -> None:
     m = _marker()
-    agents = set(json.loads(m.read_text()).get("agents", [])) if m.exists() else set()
+    agents = set(json.loads(m.read_text(encoding="utf-8")).get("agents", [])) if m.exists() else set()
     (agents.add if on else agents.discard)(agent)
-    m.write_text(json.dumps({"agents": sorted(agents)}))
+    m.write_text(json.dumps({"agents": sorted(agents)}), encoding="utf-8")
 
 
 def global_agents() -> list[str]:
     try:
-        return list(json.loads(_marker().read_text()).get("agents", []))
+        return list(json.loads(_marker().read_text(encoding="utf-8")).get("agents", []))
     except (OSError, ValueError):
         return []
 
@@ -573,7 +627,7 @@ def installed_global(agent: str, home: Path | None = None) -> bool:
         return p["opencode_plugin"].exists()
     f = p["claude_settings"] if agent == "claude" else p["codex_hooks"]
     try:
-        t = f.read_text()
+        t = f.read_text(encoding="utf-8")
     except OSError:
         return False
     return "keelyard" in t and " hook " in t
