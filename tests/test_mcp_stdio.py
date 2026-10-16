@@ -46,7 +46,7 @@ def test_default_toolset_is_small_and_cheap(project):
     tools = asyncio.run(_tools(project, None))
     names = {t.name for t in tools}
     assert names == {"proof_requirements", "proof_check", "proof_run_tests", "proof_status", "rewind_list", "rewind_to",
-                     "read_file", "run_compact", "recall", "find_symbol", "memory_search", "swarm", "workflow"}
+                     "read_file", "run_compact", "recall", "find_symbol", "memory_search", "swarm", "workflow", "work_state"}
     size = sum(len(json.dumps(t.model_dump(exclude_none=True, by_alias=True))) for t in tools) // 4
     every = sum(len(json.dumps(t.model_dump(exclude_none=True, by_alias=True))) for t in asyncio.run(_tools(project))) // 4
     assert size < every * 0.7, (size, every)

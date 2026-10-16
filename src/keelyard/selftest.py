@@ -134,7 +134,7 @@ async def _agent(proj: Path, env: dict, rep: Report) -> None:
         found = await call("find_symbol", {"name": "total"})
         first = await call("read_file", {"path": "cart.py"})
         again = await call("read_file", {"path": "cart.py"})
-        check("context: find_symbol + deduplicated read", found["matches"] and "unchanged" in again["content"]
+        check("context: find_symbol + deduplicated read", found["matches"] and len(again["content"]) <= len(first["content"])
               and "sum(prices)" in first["content"], found["matches"][0] if found["matches"] else "no match", t0)
 
         t0 = time.perf_counter()

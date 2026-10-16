@@ -356,6 +356,29 @@ def memory_search(
     return {"query": query, **m.search_page(query, str(cfg.root) if this_project_only else None, budget_chars, offset=offset)}
 
 
+@_tool(_ann("Work state"))
+def work_state(
+    action: Annotated[Literal["show", "decision", "question", "resolve"], Field(description="show, record, or resolve.")] = "show",
+    text: Annotated[str, Field(description="The decision or question, one line.")] = "",
+    ref: Annotated[str, Field(description='Evidence: "path:line", "cmd: <command>" or "#<proof item>". Required for decisions.')] = "",
+    item: Annotated[int, Field(ge=0, description="Id to resolve.")] = 0,
+) -> dict[str, Any]:
+    """Compact state that survives compaction: requirements, decisions, changed files, open questions.
+    Record each key decision with a ref to the file line or command that backs it."""
+    from .workstate import WorkState
+
+    cfg, sid = _ctx()
+    ws = WorkState(cfg, sid)
+    try:
+        if action in ("decision", "question"):
+            ws.add(action, text, ref)
+        elif action == "resolve":
+            ws.resolve(item)
+    except (ValueError, KeyError) as e:
+        raise ToolError(str(e)) from None
+    return {"state": ws.render(600) or "empty"}
+
+
 @_tool(_ann("keelyard status", read_only=True))
 def status() -> dict[str, Any]:
     """One call to orient yourself: version, project root, snapshot count, proof state."""
@@ -376,7 +399,7 @@ def workflow(name: Annotated[Literal["plan", "debug", "review"], Field(descripti
 
 # Loaded by default: the tools the workflow needs. Hooks do the rest without any schema cost.
 CORE = ("proof_requirements", "proof_check", "proof_run_tests", "proof_status", "rewind_list", "rewind_to", "read_file",
-        "run_compact", "recall", "find_symbol", "memory_search", "swarm", "workflow")
+        "run_compact", "recall", "find_symbol", "memory_search", "swarm", "workflow", "work_state")
 
 
 def _strip_titles(schema):

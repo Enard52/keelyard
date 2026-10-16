@@ -226,6 +226,13 @@ def _parser() -> argparse.ArgumentParser:
     x.add_argument("--budget", type=int, default=2400, help="max characters returned (default 2400)")
     x.add_argument("--offset", type=int, default=0, help="skip this many hits (next page)")
 
+    p = cmd("state", "compact work state: requirements, decisions, changes, open questions",
+            "examples:\n  keelyard state\n  keelyard state decision \"keep float prices\" --ref src/cart.py:42\n"
+            "  keelyard state question \"is the 10% cap per order?\"\n  keelyard state resolve 2")
+    p.add_argument("action", nargs="?", choices=["show", "decision", "question", "resolve"], default="show")
+    p.add_argument("text", nargs="?", default="", help="the decision/question, or the id to resolve")
+    p.add_argument("--ref", default="", help="evidence: path:line, 'cmd: <command>' or #<proof item>")
+
     p = cmd("usage", "tokens and cost from your local agent logs", "examples:\n  keelyard usage\n  keelyard usage --by model")
     p.add_argument("--by", choices=["day", "model", "agent"], default="day")
 
@@ -812,6 +819,24 @@ def do_memory(a):
         if res["remaining"]:
             print(f"… {res['remaining']} more; next page: keelyard memory search {shlex.quote(a.query)} --offset {res['next_offset']}")
     return 0, {"query": a.query, **res}
+
+
+def do_state(a):
+    from .workstate import WorkState
+
+    cfg = _cfg()
+    ws = WorkState(cfg, session.current(cfg))
+    try:
+        if a.action in ("decision", "question"):
+            ws.add(a.action, a.text, a.ref)
+        elif a.action == "resolve":
+            ws.resolve(int(a.text or 0))
+    except (ValueError, KeyError) as e:
+        raise Fail(str(e).strip("'\"")) from None
+    text = ws.render(2000)
+    if _human(a):
+        print(text or "no work state yet. Record a decision: keelyard state decision \"...\" --ref path:line")
+    return 0, {"state": text, "items": ws.load()}
 
 
 def do_usage(a):

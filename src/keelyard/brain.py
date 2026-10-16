@@ -38,14 +38,25 @@ def brief(cfg: Config, session: str, budget_tokens: int | None = None, query: st
 
     budget = int(budget_tokens if budget_tokens is not None else cfg.section("brain")["brief_tokens"])
     parts: list[str] = [] if lean else [RULES]  # lean: the AGENTS.md block already carries the rules
+    from .workstate import WorkState
+
+    try:
+        ws = WorkState(cfg, session)
+        state = ws.render(max(80, budget // 3)) if (ws.load() or ws.changes(1)) else ""
+    except Exception:  # noqa: BLE001
+        state = ""
+    if state:
+        parts.append(state)  # includes the requirements, so the proof items below would repeat them
     try:
         b = Proof(cfg, session).load()
+        if state:
+            raise LookupError
         open_items = [f"#{r['id']} {r['text']}" for r in b.requirements if not r["done"]]
         if open_items:
             parts.append("Open proof items:\n- " + "\n- ".join(open_items[:8]))
         elif b.task and not lean:
             parts.append(f"Current task: {b.task[:200]}")
-    except Exception:  # noqa: BLE001 - a broken bundle must not hide the brief
+    except Exception:  # noqa: BLE001 - a broken bundle must not hide the brief (LookupError: already in the state)
         pass
     hits = recall(cfg, query or "", budget_tokens=max(60, budget // 5), exclude_session=session) if query else ""
     if hits:
