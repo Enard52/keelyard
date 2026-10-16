@@ -2,6 +2,16 @@
 
 ## 0.1.0 (unreleased)
 
+### Audit fixes (Oct 16, 2026)
+- `keelyard uninstall <agent>` now restores config files byte for byte (formatting included), deletes the `{}` files
+  and empty folders keelyard created, and leaves files alone if you edited them after install
+- `keelyard run` never makes output bigger: when filtering saves less than its own footer, the raw output is returned
+- pytest output drops frames from site-packages and the standard library and shortens `=====` banners
+- A failing test run is the only gap the proof gate reports (no extra "add a checklist" line while tests are red)
+- Bare `keelyard proof` shows the status (with `--json` too); usage errors name the real command (`keelyard code`)
+- `keelyard doctor` warns when Codex hooks are wired but `~/.codex/config.toml` has no keelyard MCP server
+- Windows: every file and stdin is read and written as UTF-8 (non-Latin text and emoji no longer depend on cp1252)
+
 ### OpenCode 2
 - The OpenCode plugin supports OpenCode 2.x (`setup(ctx)`: context, compaction, prompt, tool and event hooks, MCP via
   `ctx.mcp.transform`) and 1.x (`server()`) from one file, now installed to `.opencode/plugins/keelyard.js`
