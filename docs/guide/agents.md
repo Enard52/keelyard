@@ -8,7 +8,7 @@ MCP, and both return JSON.
 | agent | hooks | MCP | instructions |
 |---|---|---|---|
 | Claude Code | `.claude/settings.json` | `.mcp.json` | `CLAUDE.md` section, `.claude/skills/keelyard/SKILL.md`, `/keelyard:status`, `/keelyard:prove`, `/keelyard:undo` |
-| Codex | `.codex/hooks.json` | snippet for `~/.codex/config.toml` | `AGENTS.md` section |
+| Codex | `.codex/hooks.json` | snippet for `~/.codex/config.toml`, or `.codex/config.toml` with `--codex-project-mcp` | `AGENTS.md` section |
 | OpenCode | `.opencode/plugins/keelyard.js` | `opencode.json` | `AGENTS.md` section |
 
 The instruction sections sit between `<!-- keelyard:start -->` and `<!-- keelyard:end -->`. `init` replaces only
@@ -33,3 +33,15 @@ memory, runs a swarm task against a local stub model, makes a bad edit, gets blo
 fixes the bug, proves it and is let through. It needs no network and no API key.
 
 ![selftest](../img/cli-selftest.png)
+
+### Codex MCP: project or user level
+
+Codex reads MCP servers from `~/.codex/config.toml`, and from a project's `.codex/config.toml` only when you
+trust the project. keelyard never writes either without asking:
+
+- `keelyard init --codex-project-mcp` (or `keelyard install codex --codex-project-mcp`) adds the server to this
+  project's `.codex/config.toml`, between `# keelyard:start` / `# keelyard:end`. Trust the project in Codex once.
+- `keelyard install codex --global` adds it to `~/.codex/config.toml` for every project.
+
+`keelyard doctor` warns if Codex hooks are wired but neither file has the server. `keelyard uninstall codex`
+removes the block and deletes the file if nothing else was in it.

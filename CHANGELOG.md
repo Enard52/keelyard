@@ -2,6 +2,21 @@
 
 ## 0.1.0 (unreleased)
 
+### Audit fixes, round 2 (Oct 16, 2026)
+- Codex: opt-in `--codex-project-mcp` on `init` and `install codex` writes the MCP server to `.codex/config.toml`
+- `--json` works before or after the action in every group command (`keelyard proof --json status`)
+- No trailing spaces in human output; error hints are not hard-wrapped
+- `rewind` and the timeline browser name your files and count agent setup files (`a.py (+5 agent setup)`)
+- memory and usage read OpenCode's `opencode.db` (OpenCode 1.x+/2.x keep sessions there, not in `storage/`);
+  read-only, only the session/message/part tables; messages left over from the JSON-to-SQLite migration count once
+- swarm: `swarm plan --json > tasks.json` feeds `swarm run tasks.json` (it failed before); an error file from
+  `plan` is refused with its hint; a missing API key is reported before any call; HTTP 401/402/404/429 and
+  unreachable servers get one-line explanations with a free-model hint; exit 3 when every call failed;
+  `--model` is honored in cooperative mode (it was ignored)
+- arena: per-contender summary and progress in the terminal; `files_changed` no longer counts the caches
+  the check writes; no matplotlib font warnings
+- timeline browser: tests drive it headless; a cut diff says so and how to see all of it
+
 ### Audit fixes (Oct 16, 2026)
 - `keelyard uninstall <agent>` now restores config files byte for byte (formatting included), deletes the `{}` files
   and empty folders keelyard created, and leaves files alone if you edited them after install

@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Footer, OptionList, Static
 from textual.widgets.option_list import Option
 
-from .snapshot import Shadow, Step, user_first
+from .snapshot import WIRING, Shadow, Step, user_first
 
 QUIET = {"baseline", "pre-rewind", "rewind", "stop", "manual"}
 
@@ -38,11 +38,12 @@ ConfirmRewind { align: center middle; background: #00000080; }
 def _row(s: Step) -> Text:
     t = dt.datetime.fromtimestamp(s.ts).strftime("%H:%M:%S")
     first = user_first(s.files)
-    files = first[0] if first else ""
+    mine = [f for f in first if not f.startswith(WIRING)] or first  # agent setup files are not your work
+    files = mine[0] if mine else ""
     if len(files) > 18:
         files = "…" + files[-17:]
-    if len(s.files) > 1:
-        files += f" +{len(s.files) - 1}"
+    if len(mine) > 1:
+        files += f" +{len(mine) - 1}"
     quiet = s.tool in QUIET
     line = Text(no_wrap=True, overflow="ellipsis")
     line.append(f" #{s.step:<4}", style="#8F8F89")
@@ -143,7 +144,11 @@ class Timeline(App):
             diff = self.shadow.diff(s.step)
         except Exception as e:  # noqa: BLE001
             diff = f"(could not read this step: {e})"
-        self.query_one("#diffbody", Static).update(render_diff(diff[:200_000]))
+        cap = 200_000
+        body = render_diff(diff[:cap])
+        if len(diff) > cap:
+            body.append(f"\n… diff cut at {cap:,} characters; full diff: keelyard rewind show {s.step}", style="#8F8F89")
+        self.query_one("#diffbody", Static).update(body)
         self.query_one("#diff", VerticalScroll).scroll_home(animate=False)
 
     def action_noop(self) -> None:
