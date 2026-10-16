@@ -1,32 +1,32 @@
 {
  "keelyard": {
   "1 find code": {
-   "before": 16969,
-   "after": 3691,
+   "before": 17781,
+   "after": 3859,
    "correct": true,
    "check": "the top-ranked definition's own lines are in the slice read"
   },
   "2 re-reads": {
-   "before": 127392,
-   "after": 43289,
+   "before": 129777,
+   "after": 44136,
    "correct": true,
    "check": "diff applied to the first read reproduces the edited file exactly; force=true returns it all"
   },
   "3 logs (real run)": {
-   "before": 1233,
+   "before": 1254,
    "after": 9,
    "correct": true,
    "check": "every error/failure/count line is kept"
   },
   "4 paging": {
-   "before": 8849,
+   "before": 9009,
    "after": 416,
    "correct": true,
-   "check": "'test': 352 results; walking every page returns all of them in order, none lost",
+   "check": "'test': 359 results; walking every page returns all of them in order, none lost",
    "note": "saves only when the answer is on page 1; reading every page costs slightly more than one dump"
   },
   "5 work state": {
-   "before": 26574,
+   "before": 26894,
    "after": 241,
    "correct": true,
    "check": "every decision ref resolves to a real file line or command; all changed files and requirements present",
@@ -107,6 +107,12 @@
    "after": 1502,
    "correct": true,
    "check": "every error/failure/count line is kept"
+  },
+  "3 JSON output": {
+   "before": 2121,
+   "after": 1236,
+   "correct": true,
+   "check": "decoding the table gives back the exact JSON"
   }
  },
  "mcp": {

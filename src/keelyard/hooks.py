@@ -103,6 +103,9 @@ def _auto_test(cfg: config.Config, sid: str, resp) -> dict | None:
     else:
         small = filter_output(run["cmd"], run["tail"])[-1200:].strip()
         note = f"[keelyard ran `{run['cmd']}` after this edit: exit {run['exit']}]\n{small}"
+        hint = Proof(cfg, sid).repeat_hint(run)
+        if hint:
+            note += "\n" + hint
     orig = resp.get("stdout", "") if isinstance(resp, dict) and isinstance(resp.get("stdout"), str) else None
     if orig is None:
         return _ctx("PostToolUse", note)
@@ -240,12 +243,16 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
             cmd = tin.get("command") or tin.get("cmd") or ""
             cmd = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
             code = next((resp[k] for k in ("exit_code", "exitCode", "exit") if isinstance(resp.get(k), int)), None)
+            hint = None
             try:
-                Proof(cfg, sid).record_shell_run(cmd, resp["stdout"] + "\n" + (resp.get("stderr") or ""), code)
+                pf = Proof(cfg, sid)
+                hint = pf.repeat_hint(pf.record_shell_run(cmd, resp["stdout"] + "\n" + (resp.get("stderr") or ""), code))
             except Exception:  # noqa: BLE001 - proof capture must never break the agent
                 pass
+            if hint:
+                out = _ctx("PostToolUse", hint)
         if tool in SHELL_TOOLS and sav.get("filter_bash", True):
-            out = _filter_bash(cfg, tin, payload.get("tool_response"))
+            out = _merge(out, _filter_bash(cfg, tin, payload.get("tool_response")))
         if tool in EDIT_TOOLS_READ:
             f = _file_arg(tin)
             if f and not tin.get("offset") and not tin.get("limit"):

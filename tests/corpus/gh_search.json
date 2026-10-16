@@ -1,0 +1,332 @@
+[
+  {
+    "forksCount": 1812,
+    "fullName": "awslabs/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 9782,
+    "url": "https://github.com/awslabs/mcp"
+  },
+  {
+    "forksCount": 590,
+    "fullName": "BrowserMCP/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 7190,
+    "url": "https://github.com/BrowserMCP/mcp"
+  },
+  {
+    "forksCount": 647,
+    "fullName": "microsoft/mcp",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 3778,
+    "url": "https://github.com/microsoft/mcp"
+  },
+  {
+    "forksCount": 537,
+    "fullName": "google/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 4642,
+    "url": "https://github.com/google/mcp"
+  },
+  {
+    "forksCount": 418,
+    "fullName": "supabase/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 2954,
+    "url": "https://github.com/supabase/mcp"
+  },
+  {
+    "forksCount": 267,
+    "fullName": "MicrosoftDocs/mcp",
+    "license": {
+      "key": "cc-by-4.0",
+      "name": "Creative Commons Attribution 4.0 International",
+      "url": "https://api.github.com/licenses/cc-by-4.0"
+    },
+    "stargazersCount": 1949,
+    "url": "https://github.com/MicrosoftDocs/mcp"
+  },
+  {
+    "forksCount": 17785,
+    "fullName": "punkpeye/awesome-mcp-servers",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 96474,
+    "url": "https://github.com/punkpeye/awesome-mcp-servers"
+  },
+  {
+    "forksCount": 932,
+    "fullName": "yzfly/Awesome-MCP-ZH",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 7737,
+    "url": "https://github.com/yzfly/Awesome-MCP-ZH"
+  },
+  {
+    "forksCount": 135,
+    "fullName": "cloudflare/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 962,
+    "url": "https://github.com/cloudflare/mcp"
+  },
+  {
+    "forksCount": 6856,
+    "fullName": "ChromeDevTools/chrome-devtools-mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 53672,
+    "url": "https://github.com/ChromeDevTools/chrome-devtools-mcp"
+  },
+  {
+    "forksCount": 3262,
+    "fullName": "microsoft/playwright-mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 38239,
+    "url": "https://github.com/microsoft/playwright-mcp"
+  },
+  {
+    "forksCount": 124,
+    "fullName": "laravel/mcp",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 853,
+    "url": "https://github.com/laravel/mcp"
+  },
+  {
+    "forksCount": 148,
+    "fullName": "oracle/mcp",
+    "license": {
+      "key": "upl-1.0",
+      "name": "Universal Permissive License v1.0",
+      "url": "https://api.github.com/licenses/upl-1.0"
+    },
+    "stargazersCount": 462,
+    "url": "https://github.com/oracle/mcp"
+  },
+  {
+    "forksCount": 4353,
+    "fullName": "activepieces/activepieces",
+    "license": {
+      "key": "other",
+      "name": "Other",
+      "url": ""
+    },
+    "stargazersCount": 25072,
+    "url": "https://github.com/activepieces/activepieces"
+  },
+  {
+    "forksCount": 5229,
+    "fullName": "github/github-mcp-server",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 33664,
+    "url": "https://github.com/github/github-mcp-server"
+  },
+  {
+    "forksCount": 3848,
+    "fullName": "DeusData/codebase-memory-mcp",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 46713,
+    "url": "https://github.com/DeusData/codebase-memory-mcp"
+  },
+  {
+    "forksCount": 5651,
+    "fullName": "microsoft/mcp-for-beginners",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 17459,
+    "url": "https://github.com/microsoft/mcp-for-beginners"
+  },
+  {
+    "forksCount": 94,
+    "fullName": "jina-ai/MCP",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 882,
+    "url": "https://github.com/jina-ai/MCP"
+  },
+  {
+    "forksCount": 112,
+    "fullName": "salesforcecli/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 485,
+    "url": "https://github.com/salesforcecli/mcp"
+  },
+  {
+    "forksCount": 2438,
+    "fullName": "xpzouying/xiaohongshu-mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 16323,
+    "url": "https://github.com/xpzouying/xiaohongshu-mcp"
+  },
+  {
+    "forksCount": 104,
+    "fullName": "mondaycom/mcp",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 430,
+    "url": "https://github.com/mondaycom/mcp"
+  },
+  {
+    "forksCount": 7309,
+    "fullName": "78/xiaozhi-esp32",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 31281,
+    "url": "https://github.com/78/xiaozhi-esp32"
+  },
+  {
+    "forksCount": 75,
+    "fullName": "hyperbrowserai/mcp",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 789,
+    "url": "https://github.com/hyperbrowserai/mcp"
+  },
+  {
+    "forksCount": 2853,
+    "fullName": "ahujasid/mcp-for-blender",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 31175,
+    "url": "https://github.com/ahujasid/mcp-for-blender"
+  },
+  {
+    "forksCount": 108,
+    "fullName": "Snowflake-Labs/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 300,
+    "url": "https://github.com/Snowflake-Labs/mcp"
+  },
+  {
+    "forksCount": 94,
+    "fullName": "IBM/mcp",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 414,
+    "url": "https://github.com/IBM/mcp"
+  },
+  {
+    "forksCount": 2832,
+    "fullName": "tradesdontlie/tradingview-mcp",
+    "license": {
+      "key": "other",
+      "name": "Other",
+      "url": ""
+    },
+    "stargazersCount": 6849,
+    "url": "https://github.com/tradesdontlie/tradingview-mcp"
+  },
+  {
+    "forksCount": 86,
+    "fullName": "Dokploy/mcp",
+    "license": {
+      "key": "other",
+      "name": "Other",
+      "url": ""
+    },
+    "stargazersCount": 400,
+    "url": "https://github.com/Dokploy/mcp"
+  },
+  {
+    "forksCount": 1764,
+    "fullName": "googleapis/mcp-toolbox",
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "url": "https://api.github.com/licenses/apache-2.0"
+    },
+    "stargazersCount": 16669,
+    "url": "https://github.com/googleapis/mcp-toolbox"
+  },
+  {
+    "forksCount": 1507,
+    "fullName": "mcp-use/mcp-use",
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "stargazersCount": 10772,
+    "url": "https://github.com/mcp-use/mcp-use"
+  }
+]

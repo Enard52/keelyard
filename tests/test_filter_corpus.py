@@ -89,3 +89,25 @@ def test_run_footer_reports_exit_code_and_collapsed_lines(tmp_path):
     code, out = run_filtered(f'"{sys.executable}" "{script}" -m pytest', tmp_path, tmp_path / "raw")
     assert code == 1
     assert "exit 1;" in out and "lines collapsed" in out and "1 failed, 400 passed" in out and "assert 1 == 2" in out
+
+
+def _untable(v):
+    if isinstance(v, dict) and set(v) == {"columns", "rows"}:
+        return [dict(zip(v["columns"], r, strict=True)) for r in v["rows"]]
+    if isinstance(v, dict):
+        return {k: _untable(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_untable(x) for x in v]
+    return v
+
+
+def test_json_output_is_compacted_losslessly():
+    import json
+
+    data = {"total": 40, "items": [{"name": f"repo{i}", "stars": i * 10, "license": {"key": "mit"}, "tags": ["a", "b"]}
+                                   for i in range(40)], "mixed": [{"a": 1}, {"b": 2}, {"a": 3}]}
+    raw = json.dumps(data, indent=2)
+    out = filter_output("gh api repos", raw)
+    assert len(out) < len(raw) * 0.6
+    assert _untable(json.loads(out.split("\n", 1)[1])) == data  # every value survives
+    assert filter_output("x", '{"a": 1}') == '{"a": 1}'  # tiny or already-minimal JSON is left alone

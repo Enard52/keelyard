@@ -189,6 +189,16 @@ def m3_corpus() -> dict:
     return {"before": before, "after": after, "correct": bool(ok), "check": "every error/failure/count line is kept"}
 
 
+def m3_json() -> dict:
+    """Pretty JSON from a CLI (`gh search repos --json ...`), compacted losslessly."""
+    raw = (ROOT / "tests/corpus/gh_search.json").read_text(encoding="utf-8")
+    small = filter_output("gh search repos", raw)
+    data = json.loads(raw)
+    body = json.loads(small.split("\n", 1)[1])
+    rows = [dict(zip(body["columns"], r, strict=True)) for r in body["rows"]] if isinstance(body, dict) else body
+    return {"before": tok(raw), "after": tok(small), "correct": rows == data, "check": "decoding the table gives back the exact JSON"}
+
+
 # 4 -------------------------------------------------------------- paged search
 def m4_paging(repo: Path) -> dict:
     names = {"keelyard": "test", "httpx": "request", "discount": "total"}
@@ -284,7 +294,7 @@ def _main() -> None:
             cfg = config.load(repo)
             results[name] = {"1 find code": m1_find(repo, syms, cfg), "2 re-reads": m2_reread(repo, cfg),
                              "3 logs (real run)": m3_logs(repo), "4 paging": m4_paging(repo), "5 work state": m5_state(repo, cfg)}
-    results["corpus"] = {"3 logs (corpus)": m3_corpus()}
+    results["corpus"] = {"3 logs (corpus)": m3_corpus(), "3 JSON output": m3_json()}
     results["mcp"] = {"6 tools/list": m6_tools()}
     out = ROOT / "bench" / "mechanisms.json"
     out.write_text(json.dumps(results, indent=1) + "\n", encoding="utf-8")

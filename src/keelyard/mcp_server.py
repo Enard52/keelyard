@@ -118,9 +118,14 @@ def proof_run_tests(
 
     Returns {"exit", "passed", "seconds", "cmd", "output"} where output is a compact tail."""
     cfg, sid = _ctx()
-    r = Proof(cfg, sid).run_tests(phase, command or None)
-    return {"exit": r["exit"], "passed": r["exit"] == 0, "seconds": r["seconds"], "cmd": r["cmd"],
-            "output": compress_output(r["tail"], 3000)}
+    pf = Proof(cfg, sid)
+    r = pf.run_tests(phase, command or None)
+    out = {"exit": r["exit"], "passed": r["exit"] == 0, "seconds": r["seconds"], "cmd": r["cmd"],
+           "output": compress_output(r["tail"], 3000)}
+    hint = pf.repeat_hint(r)
+    if hint:
+        out["hint"] = hint
+    return out
 
 
 @_tool(_ann("Screenshot app", open_world=True))

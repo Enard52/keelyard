@@ -12,6 +12,7 @@ that names a failure, an error, or a file:line location. bench.retention checks 
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import shlex  # noqa: F401
 import subprocess
@@ -280,7 +281,39 @@ def pick(cmd: str) -> Callable[[str], str] | None:
     return None
 
 
+def _tabulate(v):
+    """Lossless: a list of objects that share their keys becomes {"columns": [...], "rows": [[...], ...]}."""
+    if isinstance(v, dict):
+        return {k: _tabulate(x) for k, x in v.items()}
+    if isinstance(v, list):
+        v = [_tabulate(x) for x in v]
+        if len(v) >= 3 and all(isinstance(x, dict) for x in v):
+            cols = list(v[0])
+            if cols and all(list(x) == cols for x in v) and "columns" not in cols:
+                return {"columns": cols, "rows": [[x[c] for c in cols] for x in v]}
+        return v
+    return v
+
+
+def compact_json(out: str) -> str | None:
+    """JSON output (an API response, `--json` CLIs, `gh ... --json`): minified, uniform lists as tables.
+    Every value is kept; None when the output is not one JSON document or nothing would be saved."""
+    text = out.strip()
+    if not text or text[0] not in "[{" or len(text) < 200:
+        return None
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    small = json.dumps(_tabulate(data), ensure_ascii=False, separators=(",", ":"))
+    note = "[keelyard: JSON minified; lists of same-key objects as {columns, rows}]\n"
+    return note + small if len(note) + len(small) < len(text) else None
+
+
 def filter_output(cmd: str, out: str) -> str:
+    js = compact_json(out)
+    if js is not None:
+        return js
     fn = pick(cmd)
     try:
         small = fn(out) if fn else compress_output(out)

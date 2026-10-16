@@ -34,6 +34,18 @@ def is_test_cmd(cmd: str) -> bool:
     return bool(TEST_CMD.search(cmd or ""))
 
 
+_SIG_LINE = re.compile(r"^(FAILED|ERROR) \S+|^E\s+\S|^--- FAIL: \S+|panicked at|^\s*●\s|\b\w+(Error|Exception):|^FAIL\s+\S+")
+
+
+def failure_signature(text: str) -> str:
+    """What failed, without volatile details (numbers, addresses, timings), to spot the same failure twice."""
+    keep = set()
+    for ln in (text or "").splitlines():
+        if _SIG_LINE.search(ln):
+            keep.add(re.sub(r"0x[0-9a-f]+|\d+(\.\d+)?", "N", ln.strip())[:200])
+    return "\n".join(sorted(keep))
+
+
 def parse_test_exit(output: str) -> int | None:
     """Exit status of a test run judged from its output: 0 passed, 1 failed, None unknown."""
     if _FAIL.search(output or ""):
@@ -182,6 +194,22 @@ class Proof:
                "tail": redact(out[-TAIL:]), "level": VERIFIED, "tree": self._tree(), "ran": trust.tests_ran(out)}
         self._update(lambda b: b.test_runs.append(run))
         return run
+
+    def repeat_hint(self, run: dict | None) -> str | None:
+        """Only when needed: a failing run whose failure is identical to an earlier one made on different code.
+        The agent's last change did not move the result; saying so once beats another blind edit."""
+        if not run or run.get("exit") == 0:
+            return None
+        sig = failure_signature(run.get("tail", ""))
+        if not sig:
+            return None
+        runs = self.load().test_runs
+        same = [t for t in runs if t is not run and t.get("ts", 0) < run.get("ts", 0) and t.get("exit") not in (0, None)
+                and t.get("tree") != run.get("tree") and failure_signature(t.get("tail", "")) == sig]
+        if not same:
+            return None
+        return (f"keelyard: same failure as {len(same)} earlier attempt(s) on different code; your last change did not "
+                "affect it. Re-read the error before editing again (undo attempts: keelyard rewind list).")
 
     def _tree(self) -> str | None:
         try:
