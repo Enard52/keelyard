@@ -99,15 +99,18 @@ EXIT_CODES = """exit codes:
   `keelyard run` exits with the code of the command it ran."""
 
 
-def _json_parent() -> argparse.ArgumentParser:
+def _json_parent(suppress: bool = False) -> argparse.ArgumentParser:
+    """suppress=True for actions under a group that has --json itself: an unset child flag must not reset
+    `keelyard proof --json status` back to False."""
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument("--json", action="store_true", help="print one JSON object on stdout (for scripts and agents)")
+    p.add_argument("--json", action="store_true", default=argparse.SUPPRESS if suppress else False,
+                   help="print one JSON object on stdout (for scripts and agents)")
     return p
 
 
 def _parser() -> argparse.ArgumentParser:
     fmt = argparse.RawDescriptionHelpFormatter
-    jp = _json_parent()
+    jp, jp_child = _json_parent(), _json_parent(suppress=True)
     ap = argparse.ArgumentParser(prog="keelyard", usage="keelyard <command> [options]", description=OVERVIEW, formatter_class=fmt,
                                  epilog=EXIT_CODES + "\n\nRun `keelyard <command> --help` for examples. Every command accepts --json.")
     ap.add_argument("--version", action="version", version=f"keelyard {__version__}")
@@ -122,7 +125,7 @@ def _parser() -> argparse.ArgumentParser:
             self.s = s
 
         def add_parser(self, name, **kw):
-            return self.s.add_parser(name, parents=[jp], description=kw.get("help"), **kw)
+            return self.s.add_parser(name, parents=[jp_child], description=kw.get("help"), **kw)
 
     def group(parent, name, help):
         s = parent.add_subparsers(dest=name, metavar="<action>", title="actions", prog=parent.prog)
@@ -136,6 +139,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--preset", choices=["lean", "balanced", "max-quality"], default="balanced",
                    help="lean = fewest tokens (trimmed agent prompt/tools, capped output); balanced = default; "
                         "max-quality = every keelyard tool over MCP. `keelyard uninstall <agent>` reverts it")
+    p.add_argument("--codex-project-mcp", action="store_true",
+                   help="Codex: register the keelyard MCP server in this project's .codex/config.toml instead of asking you to edit "
+                        "~/.codex/config.toml (Codex reads it only for trusted projects)")
     p.add_argument("--global", dest="glob", action="store_true",
                    help="wire the agents for every project of this user (~/.claude, ~/.codex, ~/.config/opencode); "
                         "projects set themselves up on their first session")
@@ -151,6 +157,10 @@ def _parser() -> argparse.ArgumentParser:
         p = cmd(name, f"{verb} one agent in this project", f"examples:\n  keelyard {name} claude\n  keelyard {name} --global")
         p.add_argument("agent", nargs="?", choices=["claude", "codex", "opencode"])
         p.add_argument("--global", dest="glob", action="store_true", help=f"{verb} at user level (all agents if none named)")
+        if name == "install":
+            p.add_argument("--codex-project-mcp", action="store_true",
+                           help="Codex: register the keelyard MCP server in this project's .codex/config.toml instead of asking you to edit "
+                        "~/.codex/config.toml (Codex reads it only for trusted projects)")
 
     r = group(cmd("rewind", "list, inspect and undo agent steps"), "action", "")
     r.s.required = False  # bare `keelyard rewind` lists steps
@@ -189,14 +199,14 @@ def _parser() -> argparse.ArgumentParser:
     p = cmd("recall", "print the full output that `run` shortened", "examples:\n  keelyard recall 3f9a1c2b7d4e")
     p.add_argument("id")
 
-    r = group(cmd("code", "outline a file, map the project, find a symbol", leaf=False), "action", "")
+    r = group(cmd("code", "outline a file, map the project, find a symbol"), "action", "")
     x = r.add_parser("outline", help="signatures only")
     x.add_argument("path", type=Path)
     r.add_parser("map", help="compact project map")
     x = r.add_parser("find", help="where a symbol is defined")
     x.add_argument("name")
 
-    r = group(cmd("memory", "search past sessions across all your agents", leaf=False), "action", "")
+    r = group(cmd("memory", "search past sessions across all your agents"), "action", "")
     r.add_parser("index", help="read new sessions from Claude Code, Codex and OpenCode")
     r.add_parser("stats", help="what is indexed")
     x = r.add_parser("search", help="full-text search")
@@ -210,7 +220,7 @@ def _parser() -> argparse.ArgumentParser:
     r = group(cmd("swarm", "fan small, checkable tasks out to a cheap model",
                   'examples:\n  keelyard swarm plan "fix total() for SAVE10" --json > tasks.json\n'
                   '  keelyard swarm run tasks.json   # [{"kind": "ask", "prompt": "...", "files": ["a.py"], "symbols": ["total"]}]\n'
-                  '  keelyard swarm plan "where is auth checked" --subagents', leaf=False), "action", "")
+                  '  keelyard swarm plan "where is auth checked" --subagents'), "action", "")
     x = r.add_parser("run", help="run tasks from a JSON file")
     x.add_argument("tasks", type=Path)
     x.add_argument("--model", help="a [models.<key>] from the config (default: [swarm].helper_model)")
@@ -223,7 +233,7 @@ def _parser() -> argparse.ArgumentParser:
     x.add_argument("--subagents", action="store_true", help="print ready prompts for your agent's own subagents")
 
     r = group(cmd("arena", "run one task across agents and models, compare results",
-                  "examples:\n  keelyard arena run examples/arena/discount/task.toml\n  keelyard arena render arena-results", leaf=False), "action", "")
+                  "examples:\n  keelyard arena run examples/arena/discount/task.toml\n  keelyard arena render arena-results"), "action", "")
     x = r.add_parser("run", help="run a task spec")
     x.add_argument("spec", type=Path)
     x.add_argument("--out", type=Path, default=Path("arena-results"))
@@ -313,7 +323,7 @@ def do_init(a):
         ui.line("ok", "config", str(cfg_path.relative_to(root)))
     for x in agents:
         was = installed(x, root)
-        items = install(x, root, preset=getattr(a, "preset", "balanced"))
+        items = install(x, root, preset=getattr(a, "preset", "balanced"), codex_project_mcp=getattr(a, "codex_project_mcp", False))
         data["changed"] += [f"{x}: {i.splitlines()[0]}" for i in items]
         if h:
             short = []
@@ -411,9 +421,9 @@ def _checks() -> list[tuple[str, str, str, str]]:
     for x in AGENTS:
         if installed(x, root):
             rows.append(("agents", "ok", x, "wired" + ("" if x in found else " (agent itself not found on PATH)")))
-            if x == "codex" and not _codex_mcp_registered():
+            if x == "codex" and not _codex_mcp_registered(root):
                 rows.append(("agents", "warn", "codex mcp", "hooks are wired but ~/.codex/config.toml has no [mcp_servers.keelyard]. "
-                             "Hint: run `keelyard install codex --global`, or paste the block `keelyard install codex` printed"))
+                             "Hint: `keelyard install codex --codex-project-mcp` (this project) or `keelyard install codex --global` (all projects)"))
         elif x in found:
             rows.append(("agents", "warn", x, f"installed but not wired. Hint: keelyard install {x}"))
         else:
@@ -421,13 +431,16 @@ def _checks() -> list[tuple[str, str, str, str]]:
     return rows
 
 
-def _codex_mcp_registered() -> bool:
+def _codex_mcp_registered(root: Path) -> bool:
     import os
     home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    try:
-        return "[mcp_servers.keelyard]" in (home / "config.toml").read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return False
+    for f in (home / "config.toml", root / ".codex" / "config.toml"):
+        try:
+            if "[mcp_servers.keelyard]" in f.read_text(encoding="utf-8", errors="replace"):
+                return True
+        except OSError:
+            pass
+    return False
 
 
 def do_doctor(a):
@@ -546,11 +559,17 @@ def do_rewind(a):
                 ui.out.print(f"[muted]{day:%a %d %b}[/]")
             room = max(20, ui.out.width - 36)
             # the user's own files first; agent wiring (.claude/, AGENTS.md, ...) last
-            from .snapshot import user_first
+            from .snapshot import WIRING, user_first
 
             ordered = user_first(s.files)
+            mine = [f for f in ordered if not f.startswith(WIRING)]
+            setup = len(ordered) - len(mine)
+            if mine and setup:  # keelyard/agent setup files are not your work: count them, don't name them
+                ordered = mine
             files = ", ".join(ordered[:3])
-            more = f"  +{len(s.files) - 3}" if len(s.files) > 3 else ""
+            more = f"  +{len(ordered) - 3}" if len(ordered) > 3 else ""
+            if mine and setup:
+                more += f"  (+{setup} agent setup)"
             if len(files) + len(more) > room:
                 files = files[: max(0, room - len(more) - 1)] + "…"
             files += more
@@ -838,7 +857,10 @@ def do_install(a):
     root = config.find_root()
     if a.cmd == "install":
         config.init(root)
-    done = getattr(inst, a.cmd)(a.agent, root)
+    if a.cmd == "install":
+        done = inst.install(a.agent, root, codex_project_mcp=getattr(a, "codex_project_mcp", False))
+    else:
+        done = inst.uninstall(a.agent, root)
     if _human(a):
         for n, item in enumerate(done or ["nothing to remove"]):
             first, *rest = item.splitlines()

@@ -329,7 +329,7 @@ def uninstall_guides(agent: str, root: Path) -> list[str]:
     return done
 
 
-def install(agent: str, root: Path, preset: str = "balanced") -> list[str]:
+def install(agent: str, root: Path, preset: str = "balanced", codex_project_mcp: bool = False) -> list[str]:
     global _PRESET
     if agent not in AGENTS:
         raise InstallError(f"unknown agent {agent!r}. Hint: choose one of {', '.join(AGENTS)}.")
@@ -338,12 +338,16 @@ def install(agent: str, root: Path, preset: str = "balanced") -> list[str]:
     _PRESET = preset
     _remember_originals(agent, root)
     try:
-        return _install(agent, root) + _apply_preset(agent, root, preset)
+        return _install(agent, root, codex_project_mcp) + _apply_preset(agent, root, preset)
     finally:
         _PRESET = "balanced"
 
 
-def _install(agent: str, root: Path) -> list[str]:
+def codex_mcp_block() -> str:
+    return f"[mcp_servers.keelyard]\ncommand = {json.dumps(_exe_path())}\nargs = [\"mcp\"]"
+
+
+def _install(agent: str, root: Path, codex_project_mcp: bool = False) -> list[str]:
     for rel, _ in FILES[agent]:  # validate everything first, so a bad file never leaves a half install
         _read_json(root / rel)
     done = []
@@ -354,7 +358,12 @@ def _install(agent: str, root: Path) -> list[str]:
     elif agent == "codex":
         _merge_hooks(root / ".codex" / "hooks.json", "codex", CODEX_EVENTS)
         done.append(".codex/hooks.json (hooks; approve them in Codex with /hooks)")
-        done.append(f'add to ~/.codex/config.toml:\n[mcp_servers.keelyard]\ncommand = {json.dumps(_exe_path())}\nargs = ["mcp"]')
+        if codex_project_mcp:
+            _toml_block(root / ".codex" / "config.toml", codex_mcp_block())
+            done.append(".codex/config.toml (MCP server; Codex loads it once you trust this project)")
+        else:
+            done.append(f"add to ~/.codex/config.toml:\n{codex_mcp_block()}\n"
+                        "or rerun with --codex-project-mcp to put it in this project's .codex/config.toml")
     elif agent == "opencode":
         legacy = root / ".opencode" / "plugin" / "keelyard.js"  # keelyard <= 0.1 put it here; OpenCode 2 loads both dirs
         if legacy.exists():
@@ -397,6 +406,12 @@ def uninstall(agent: str, root: Path) -> list[str]:
         if agent == "opencode" and plugin.exists():
             plugin.unlink()
             done.append(f".opencode/{d}/keelyard.js")
+    toml = root / ".codex" / "config.toml"
+    if agent == "codex" and toml.exists() and TOML_START in toml.read_text(encoding="utf-8"):
+        _toml_block(toml, None)
+        if not toml.read_text(encoding="utf-8").strip():
+            toml.unlink()
+        done.append(".codex/config.toml (MCP server)")
     done += uninstall_guides(agent, root)
     _restore_originals(agent, root)
     return done

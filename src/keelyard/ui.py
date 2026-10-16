@@ -36,7 +36,8 @@ def heading(text: str, sub: str = "") -> None:
 
 def line(state: str, label: str, detail: str = "", width: int = 18) -> None:
     mark = {"ok": f"[ok]{OK}[/]", "bad": f"[bad]{BAD}[/]", "warn": f"[warn]{WARN}[/]", "skip": f"[muted]{DOT}[/]"}[state]
-    out.print(f"  {mark} {escape(label):<{width}} [muted]{escape(detail)}[/]")
+    text = f"  {mark} {escape(label):<{width}}"
+    out.print(f"{text} [muted]{escape(detail)}[/]" if detail else text.rstrip())
 
 
 def error(message: str) -> None:
