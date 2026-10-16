@@ -2,6 +2,14 @@
 
 ## 0.1.0 (unreleased)
 
+### Ideas from popular agent tools, rebuilt from scratch (Oct 16, 2026)
+- Terse-output rule in every preset (CLAUDE.md, AGENTS.md); `--no-terse` / `KEELYARD_TERSE=0` to opt out;
+  `bench/terse.py` measures it on a local model
+- Lossless JSON compaction in the output filters
+- One hint when the same test failure returns after a code change (hooks, auto-test, `proof_run_tests`)
+- Test: the session brief is byte-stable (prompt cache)
+- README credits inspirations; survey of 57 repos in `docs/research/ideas.md`
+
 ### Token-saving mechanisms, each with a safeguard (Oct 16, 2026)
 - Find code: ranked `find_symbol` (exact names and source first), `refs=true` call sites, `outline(related=true)`
   and `keelyard code related FILE` (imports, importers, tests); `keelyard code find --refs --offset --limit`

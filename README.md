@@ -60,7 +60,8 @@ gives your config files back byte for byte.
   `keelyard rewind to <n>` is itself undoable, backs up files snapshots can't hold, and survives being interrupted.
   Secrets (`.env`, keys) are never snapshotted.
 - **Smaller context.** Filters for test runners, git, linters and search keep every error, warning and `file:line`
-  ([tested on real logs](tests/corpus/)). Re-reading an unchanged file costs one line.
+  ([tested on real logs](tests/corpus/)). JSON output is compacted losslessly. Re-reading an unchanged file costs one line.
+  The agent is told to answer with results only (opt out: `--no-terse`).
 - **Memory, usage, swarm, arena.** Search past sessions of all three agents, see token use from local logs,
   send small checked tasks to a free/cheap model, compare agents on one task.
 
@@ -76,6 +77,19 @@ and slash commands. Every CLI command takes `--json`; exit codes: `0` ok, `1` er
 
 [Documentation](docs/index.md): one page per module, CLI and MCP reference, config, troubleshooting,
 [benchmarks](BENCHMARKS.md), [per-agent capabilities](docs/guarantees.md#per-agent).
+
+## Inspirations
+
+Ideas, not code: everything in keelyard is written from scratch. Thanks to
+[rtk](https://github.com/rtk-ai/rtk) (filtered command output),
+[caveman](https://github.com/JuliusBrussee/caveman) and SuperClaude (terse output),
+[headroom](https://github.com/headroomlabs-ai/headroom) (content-aware compression, cache-stable context),
+[projectmem](https://github.com/riponcm/projectmem) (warn before repeating a failed attempt),
+[planning-with-files](https://github.com/OthmanAdi/planning-with-files) and
+[context-mode](https://github.com/mksglu/context-mode) (state that survives compaction),
+[aider](https://github.com/Aider-AI/aider) (repo map), [claude-mem](https://github.com/thedotmack/claude-mem)
+(session memory), [ccusage](https://github.com/ccusage/ccusage) (usage from local logs) and
+[cline](https://github.com/cline/cline) (checkpoints). Survey: [docs/research/ideas.md](docs/research/ideas.md).
 
 ## Contributing
 

@@ -71,7 +71,8 @@ Run `keelyard <command> --help` for examples. Every command accepts --json.
 
 ```text
 usage: keelyard init [-h] [--json] [--agent {claude,codex,opencode}] [--no-agents] [--dry-run]
-                     [--preset {lean,balanced,max-quality}] [--codex-project-mcp] [--global]
+                     [--preset {lean,balanced,max-quality}] [--codex-project-mcp] [--no-terse]
+                     [--global]
 
 set up this project and wire the agents found on this machine
 
@@ -89,6 +90,8 @@ options:
   --codex-project-mcp   Codex: register the keelyard MCP server in this project's
                         .codex/config.toml instead of asking you to edit ~/.codex/config.toml
                         (Codex reads it only for trusted projects)
+  --no-terse            leave out the terse-output rule (results only, no filler) from
+                        CLAUDE.md/AGENTS.md
   --global              wire the agents for every project of this user (~/.claude, ~/.codex,
                         ~/.config/opencode); projects set themselves up on their first session
 
@@ -687,7 +690,8 @@ examples:
 ## install
 
 ```text
-usage: keelyard install [-h] [--json] [--global] [--codex-project-mcp] [{claude,codex,opencode}]
+usage: keelyard install [-h] [--json] [--global] [--no-terse] [--codex-project-mcp]
+                        [{claude,codex,opencode}]
 
 wire one agent in this project
 
@@ -698,6 +702,7 @@ options:
   -h, --help            show this help message and exit
   --json                print one JSON object on stdout (for scripts and agents)
   --global              wire at user level (all agents if none named)
+  --no-terse            leave out the terse-output rule
   --codex-project-mcp   Codex: register the keelyard MCP server in this project's
                         .codex/config.toml instead of asking you to edit ~/.codex/config.toml
                         (Codex reads it only for trusted projects)

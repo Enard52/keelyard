@@ -55,3 +55,15 @@ def test_render_respects_budget(cfg):
         ws.add("decision", f"decision number {i} with a long explanation text", "app.py:1")
     out = ws.render(120)
     assert len(out) // 4 <= 130 and "more: keelyard state" in out
+
+
+def test_brief_is_stable_for_prompt_caching(cfg, project):
+    """Same state, same brief, byte for byte: a volatile brief would bust the provider's prompt cache every session."""
+    import re
+
+    ws = WorkState(cfg, "s9")
+    ws.add("decision", "keep add pure", "app.py:1")
+    a = brain.brief(cfg, "s9", budget_tokens=600)
+    b = brain.brief(cfg, "s9", budget_tokens=600)
+    assert a == b
+    assert not re.search(r"\d{4}-\d\d-\d\d[ T]\d\d:\d\d|\b\d{10}\.\d+", a)  # no timestamps

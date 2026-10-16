@@ -2,6 +2,28 @@
 
 Machine: 8 vCPU Linux box, no GPU, Python 3.13. Measured on 2026-10-12. Token counts are `chars / 4`.
 
+## Terse-output rule, measured on a local model (Oct 16, 2026)
+
+`python bench/terse.py` with Ollama `qwen-coder-1.5b` (1.8B, Q4), temperature 0, 10 coding prompts, one run each.
+Output tokens are Ollama's `eval_count`. "Correct" = the answer contains the facts the prompt needs
+(identifier, fix, error name). Raw numbers: `bench/terse.json`.
+
+| system prompt | output tokens | correct |
+|---|---:|---:|
+| no rule | 2,097 | 10/10 |
+| old one-line "Be terse" rule | 735 | 8/10 |
+| shipped rule (`guides/terse.md`, ~33 tokens) | 1,234 (−41%) | 9/10 |
+
+- The rule costs about 33 input tokens per request (11 more than the old line it replaces) and saved about 86
+  output tokens per answer here, so it pays for itself on the first answer.
+- The old line saved more but dropped required facts twice; the shipped rule says to keep code, commands,
+  paths, numbers and errors exact and complete.
+- One answer still lost a needed fact with the rule; n=10 on a 1.8B model is a small sample. Not measured with
+  Claude or GPT models (no paid calls).
+- Lossless JSON compaction: pretty `gh search repos --json` output 2,121 → 1,236 tokens (−42%), decoded back
+  exactly (`bench/mechanisms.py`). An already-minified GitHub issue list shrank only 3%.
+- The repeated-failure hint (about 40 tokens, only when it fires) was not measured for savings.
+
 ## Token-saving mechanisms, measured locally (Oct 16, 2026)
 
 `python bench/mechanisms.py` (no model, no network, $0). Tokens are `chars / 4`. Fixtures: this repo,
