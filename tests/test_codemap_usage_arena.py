@@ -103,6 +103,8 @@ cmd = ["definitely-not-installed-agent"]
     good_runs = [r for r in runs if r.agent == "good"]
     assert len(good_runs) == 2 and all(r.passed and r.input_tokens == 100 and r.cost_usd == 0.01 for r in good_runs)
     assert all(not r.passed and r.input_tokens is None for r in runs if r.agent == "lazy")
+    assert all(r.files_changed == 0 for r in runs if r.agent == "lazy")  # the check's .pytest_cache is not an edit
+    assert all(r.files_changed == 1 for r in good_runs)
     assert any(r.agent == "missing" and "not installed" in r.note for r in runs)
     html = (out / "report.html").read_text()
     assert "100%" in html and "n/a" in html and "discount" in html

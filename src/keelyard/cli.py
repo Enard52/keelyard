@@ -830,9 +830,26 @@ def do_arena(a):
     if a.action == "run":
         if not a.spec.is_file():
             raise Fail(f"{a.spec}: no such file. Hint: see examples/arena/discount/task.toml")
-        res = arena.run_task(a.spec, a.out, a.only)
+        h = _human(a)
+
+        def tick(name, i, n):
+            if h:
+                ui.err.print(f"  [muted]{name}: run {i}/{n} done[/]", soft_wrap=True)
+
+        res = arena.run_task(a.spec, a.out, a.only, progress=tick)
         report = a.out / "report.html"
-        data = {"runs": len(res), "report": str(report)}
+        rows = arena.summarize([dataclasses.asdict(r) for r in res])
+        data = {"runs": len(res), "report": str(report), "summary": rows}
+        if h:
+            ui.out.print()
+            for r in rows:
+                passed = round(r["pass_rate"] * r["runs"])
+                tok = arena._fmt(r["median_input"])
+                detail = (f"{passed}/{r['runs']} passed · median {arena._fmt(r['median_seconds'], 's')}"
+                          + (f" · input {tok} tokens" if r["median_input"] is not None else "")
+                          + (f" · {r['note']}" if r["note"] else ""))
+                ui.line("ok" if passed == r["runs"] else ("warn" if passed else "bad"), f"{r['agent']} ({r['model']})", detail,
+                        width=0)
     else:
         if not (a.out / "results.json").exists():
             raise Fail(f"no results.json in {a.out}. Hint: run `keelyard arena run <spec>` first.")

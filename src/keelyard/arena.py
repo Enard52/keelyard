@@ -87,7 +87,7 @@ def _changed(repo: Path) -> int:
     return len([ln for ln in p.stdout.splitlines() if ln.strip()])
 
 
-def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None) -> list[Run]:
+def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None, progress=None) -> list[Run]:
     spec = tomllib.loads(spec_path.read_text(encoding="utf-8"))
     task = spec["task"]
     template = (spec_path.parent / task["repo"]).resolve()
@@ -119,6 +119,9 @@ def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None) -> l
                 except subprocess.TimeoutExpired:
                     code, out, note = 124, "", f"timeout {timeout}s"
                 secs = time.time() - t0
+                changed = _changed(repo)  # before the check: test caches it writes are not the agent's edits
+                if progress:
+                    progress(agent["name"], i, runs)
                 try:
                     chk = subprocess.run(task["check"], shell=True, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
                     check_ok = chk.returncode == 0
@@ -127,7 +130,7 @@ def run_task(spec_path: Path, out_dir: Path, only: list[str] | None = None) -> l
                 u = parse_usage(out)
                 results.append(Run(agent["name"], agent.get("model", ""), i, check_ok, round(secs, 1),
                                    u["input"], u["output"], u["cache_read"],
-                                   round(u["cost"], 4) if u["cost"] is not None else None, _changed(repo), code, note))
+                                   round(u["cost"], 4) if u["cost"] is not None else None, changed, code, note))
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.json").write_text(json.dumps(
         {"task": task, "generated": time.strftime("%Y-%m-%d %H:%M:%S %z"), "runs": [asdict(r) for r in results]}, indent=2), encoding="utf-8")
@@ -217,8 +220,11 @@ def render(out_dir: Path) -> Path:
 
 
 def _chart(rows: list[dict], title: str, path: Path) -> None:
+    import logging
+
     import matplotlib
 
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)  # "findfont: ..." is noise, not a problem
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib import font_manager
