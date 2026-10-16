@@ -82,9 +82,28 @@ test calls. Installed through the real `keelyard init --agent opencode --preset 
 | noisy (1,566 tests) | baseline | 5 | 101,528 · 93,397 · 139,837 · 94,923 · 129,229 | 111,783 | 5–11 |
 | noisy (1,566 tests) | **lean v2** | 3 | 8,283 · 7,079 · 8,208 | **7,857** | 3 |
 
-Mean ratio: **noisy 14.2× fewer, small 6.0× fewer** input tokens. Every counted run ended with all tests
+Mean ratio: **noisy 14.2× fewer, small 6.0× fewer** input tokens (cached + uncached together). Every counted run ended with all tests
 passing; every lean run has proof "proven". Two lean runs from an earlier 12-way parallel batch (r8) are not
 counted: OpenCode crashed at startup ("Standalone server exited before reporting readiness") before the agent
-did anything. The small task does not reach 10×: three model calls (edit, the test run the task text asks for,
+did anything.
+
+Split by cache (same runs, means; from the same `summary.json` files):
+
+| task | | baseline mean | lean v2 mean | ratio |
+|---|---|---|---|---|
+| small | input, uncached | 11,189 | 2,509 | 4.5× |
+| small | input, cache read | 38,236 | 5,760 | 6.6× |
+| noisy | input, uncached | 28,354 | 2,983 | 9.5× |
+| noisy | input, cache read | 83,428 | 4,874 | 17.1× |
+
+Read these numbers with three limits in mind:
+- **No cost claim.** The model was free (`opencode/big-pickle`, $0 reported). On a paid model, cache reads are
+  billed far below uncached input, so the saving in money is closer to the uncached ratio than to the total.
+- **Lean turns tools off.** The lean OpenCode build agent disables 9 built-in tools and keelyard's MCP tool list.
+  That is a large part of the saving, and it means the agent can do less (see docs/guide/presets.md).
+- **Small n, one task family, one agent.** 5 baseline and 3 lean runs per task, OpenCode only. Claude Code and
+  Codex were not measured this way.
+
+The small task does not reach 10×: three model calls (edit, the test run the task text asks for,
 final reply) at ~2.2–3k tokens each are the floor we could reach; the remaining per-call cost is OpenCode's
 tool definitions plus the brief.

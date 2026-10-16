@@ -2,6 +2,28 @@
 
 ## 0.1.0 (unreleased)
 
+### Trust: proof and rewind (Oct 16, 2026)
+- Proof is bound to a content hash of the worktree: any edit after the last passing test run reopens it,
+  even one made without a hook firing
+- Evidence levels shown separately: test-verified / command-succeeded / agent-claimed (`status`, `proof`, `--json`)
+- Proof bundles are signed (HMAC, key in the user data dir, mode 600); a hand-edited bundle is never proven.
+  Bundles written by older versions have no signature and count as edited: run `keelyard proof reset`
+- Test weakening keeps the proof open: deleted test files, fewer tests or assertions, new skip/xfail/only,
+  test config changed or added, fewer tests run. `keelyard proof accept-tests "<why>"` acknowledges a real
+  refactor, recorded as agent-claimed and bound to those exact files
+- The gate is never shown green when no Stop hook is wired or no agent ever called keelyard (`unhooked`/`unverified`);
+  doctor shows it too
+- Proof writes are locked (parallel hooks and sessions); tested with 12 processes
+- Rewind copies files snapshots cannot hold (ignored, secret, too big) aside before overwriting or deleting them;
+  an interrupted rewind is detected and `keelyard rewind recover` restores the state from just before it
+- Secrets (`.env`, keys, credentials files, ...) are excluded from snapshots by default (`[rewind].include_secrets`,
+  `[rewind].exclude`); a file that becomes excluded is dropped from the timeline index
+- Filter corpus of real logs; pytest keeps the warnings summary, cargo keeps warning blocks
+- Dependencies capped at the next major version; new CI job: clean venv + clean HOME install, init, doctor,
+  selftest, uninstall leaves the project unchanged, on Linux, macOS and Windows
+- Docs: "What keelyard guarantees and what it doesn't" with a per-agent capability table; shorter README;
+  BENCHMARKS splits cached and uncached input and states the free-model and tools-off limits
+
 ### Audit fixes, round 2 (Oct 16, 2026)
 - Codex: opt-in `--codex-project-mcp` on `init` and `install codex` writes the MCP server to `.codex/config.toml`
 - `--json` works before or after the action in every group command (`keelyard proof --json status`)

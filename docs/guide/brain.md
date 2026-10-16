@@ -11,7 +11,7 @@ agent's context at the moments that matter, with a hard token budget each time.
 | after the context is compacted | the same brief again, marked "re-sent after compaction" | same |
 | each prompt you send | up to 4 snippets from earlier sessions **in this project** that match the prompt. Nothing at all if none match. | `recall_tokens`, 250 by default |
 | before reading a file again | if it is unchanged: "you already have it", plus its outline so the agent can find its place. If it changed: only the diff. | about 300 tokens of outline |
-| before a destructive command | `rm -rf`, `git reset --hard`, `git clean -f`, `git checkout .`, `git push --force`, `DROP`/`TRUNCATE`, `DELETE` without `WHERE`, and migrations (Django, Alembic, Prisma, Rails, Knex, Sequelize): keelyard **takes a snapshot first** and tells the agent which step restores the files | one line |
+| before a destructive command | `rm -rf`, `git reset --hard`, `git clean -f`, `git checkout .`, `git push --force`, `DROP`/`TRUNCATE`, `DELETE` without `WHERE`, and migrations (Django, Alembic, Prisma, Rails, Knex, Sequelize): keelyard **takes a snapshot first** and tells the agent which step restores the files. Files only: a dropped table, an applied migration or a deleted remote branch is not undone ([limits](../guarantees.md)) | one line |
 | before editing code with no test nearby | "no tests found for billing.py" (looks for `test_x.py`, `x_test.go`, `x.test.ts`, `tests/` and the like) | one line, once per file |
 | when the session gets large | if you set `plan_tokens`, a hint to hand bulk work to helpers once the session passes `budget_warn_at` of it | one line |
 
