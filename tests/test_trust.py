@@ -112,7 +112,7 @@ def test_fewer_tests_ran_is_caught(started, project):
     pf = Proof(started, "s1")
     pf.run_tests("before", PYTEST)  # 2 passed
     edit(started, project, "app.py", "def add(a, b):\n    return a + b\n\n")
-    pf.run_tests("after", f"{PYTEST} -k 'not neg'")  # deselects one
+    pf.run_tests("after", f"{PYTEST} --deselect tests/test_app.py::test_add_neg")  # one test fewer
     assert any("fewer tests ran: 2 -> 1" in g for g in pf.missing())
 
 

@@ -57,3 +57,18 @@ def test_uninstall_keeps_user_edits_made_after_install(project):
     (project / ".claude" / "settings.json").write_text(json.dumps(s))
     uninstall("claude", project)
     assert json.loads((project / ".claude" / "settings.json").read_text()).get("env", {}).get("MINE") == "1"
+
+
+def test_uninstall_restores_crlf_and_trailing_newlines_exactly(project):
+    from keelyard.adapters.install import uninstall
+
+    (project / "CLAUDE.md").write_bytes(b"# mine\r\nline two\r\n\r\n")
+    (project / "AGENTS.md").write_bytes(b"# agents\n\n\n")
+    for a in ("claude", "codex", "opencode"):
+        install(a, project)
+    uninstall("codex", project)  # opencode still uses AGENTS.md: its block must stay
+    assert b"keelyard:start" in (project / "AGENTS.md").read_bytes()
+    for a in ("claude", "opencode"):
+        uninstall(a, project)
+    assert (project / "CLAUDE.md").read_bytes() == b"# mine\r\nline two\r\n\r\n"
+    assert (project / "AGENTS.md").read_bytes() == b"# agents\n\n\n"

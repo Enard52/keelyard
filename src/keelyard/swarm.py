@@ -119,6 +119,9 @@ def explain(e: BaseException) -> str:
         return f"cannot reach {url}. Hint: {FREE_HINT}"
     if isinstance(e, httpx.TimeoutException):
         return "the helper model timed out. Hint: a smaller model, or raise [models.<key>].timeout"
+    if isinstance(e, httpx.TransportError):
+        url = str(e.request.url) if getattr(e, "_request", None) is not None else "the helper model"
+        return f"connection to {url} failed ({type(e).__name__}: {str(e)[:120] or 'closed early'}). Hint: {FREE_HINT}"
     return f"{type(e).__name__}: {str(e)[:200]}"
 
 

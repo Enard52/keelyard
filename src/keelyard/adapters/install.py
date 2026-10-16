@@ -417,10 +417,12 @@ def uninstall(agent: str, root: Path) -> list[str]:
     return done
 
 
-TOUCHED = {"claude": [".claude/settings.json", ".mcp.json"], "codex": [".codex/hooks.json"], "opencode": ["opencode.json"]}
+TOUCHED = {"claude": [".claude/settings.json", ".mcp.json", "CLAUDE.md"],
+           "codex": [".codex/hooks.json", ".codex/config.toml", "AGENTS.md"],
+           "opencode": ["opencode.json", "AGENTS.md"]}
 EMPTY_DIRS = {"claude": [".claude/commands", ".claude/skills", ".claude"], "codex": [".codex"],
               "opencode": [".opencode/plugins", ".opencode/plugin", ".opencode/command", ".opencode/agent", ".opencode"]}
-ABSENT = "\0keelyard: file did not exist\0"
+ABSENT = b"\0keelyard: file did not exist\0"
 
 
 def _original(root: Path, rel: str) -> Path:
@@ -435,32 +437,37 @@ def _remember_originals(agent: str, root: Path) -> None:
             continue
         keep.parent.mkdir(parents=True, exist_ok=True)
         src = root / rel
-        keep.write_text(src.read_text(encoding="utf-8") if src.exists() else ABSENT, encoding="utf-8")
+        keep.write_bytes(src.read_bytes() if src.exists() else ABSENT)
+
+
+def _same(cur: bytes, orig: bytes, rel: str) -> bool:
+    if rel.endswith(".json"):
+        try:
+            return json.loads(cur or b"{}") == json.loads(orig or b"{}")
+        except ValueError:
+            return False
+    norm = lambda b: b.replace(b"\r\n", b"\n").strip()  # noqa: E731 - our block edits may change newlines only
+    return norm(cur) == norm(orig)
 
 
 def _restore_originals(agent: str, root: Path) -> None:
     """After keelyard's entries are stripped: a file keelyard created and left empty is deleted, a file that is
-    back to its original content gets its original formatting back, and empty folders keelyard made go away.
-    A file the user changed since install is left alone."""
+    back to its original content gets its exact original bytes back (formatting, newlines), and empty folders
+    keelyard made go away. A file you changed since install is left alone. Shared files (AGENTS.md) wait until
+    the last agent using them is uninstalled."""
     for rel in TOUCHED[agent]:
         keep, path = _original(root, rel), root / rel
         if not keep.exists():
             continue
-        orig = keep.read_text(encoding="utf-8")
-        try:
-            cur = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
-        except ValueError:
-            continue
+        cur = path.read_bytes() if path.exists() else None
+        if cur is not None and (START.encode() in cur or TOML_START.encode() in cur):
+            continue  # another agent still has its block here
+        orig = keep.read_bytes()
         if orig == ABSENT:
-            if cur == {}:
+            if cur is not None and _same(cur, b"", rel):
                 path.unlink()
-        else:
-            try:
-                same = cur == json.loads(orig)
-            except ValueError:
-                same = False
-            if same:
-                path.write_text(orig, encoding="utf-8")
+        elif cur is not None and _same(cur, orig, rel):
+            path.write_bytes(orig)
         keep.unlink()
     for rel in EMPTY_DIRS[agent]:
         d = root / rel
