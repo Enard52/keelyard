@@ -147,7 +147,7 @@ class Coop(Swarm):
     def __init__(self, cfg: Config, transport: httpx.AsyncBaseTransport | None = None, **kw):
         super().__init__(cfg, transport=transport, **kw)
         o = self.opts
-        names = list(o.get("ladder") or [])
+        names = [kw["model_key"]] if kw.get("model_key") else list(o.get("ladder") or [])  # --model pins one model
         if not names:
             names = [o["helper_model"]] + ([o["escalate_model"]] if self.escalate else [])
         self.ladder = []
@@ -244,7 +244,9 @@ class Coop(Swarm):
             r.ok, r.notes = bool(r.output), [*r.notes, f"stopped: {e}"]
             return r
         except Exception as e:  # noqa: BLE001 - one failed worker must not sink the swarm
-            return Result(t.id, t.kind, False, False, "", [f"{type(e).__name__}: {str(e)[:200]}"], r.tokens_in, r.tokens_out,
+            from .swarm import explain
+
+            return Result(t.id, t.kind, False, False, "", [explain(e)], r.tokens_in, r.tokens_out,
                           r.attempts, r.candidates)
 
     async def run(self, tasks: list[Task]) -> list[Result]:

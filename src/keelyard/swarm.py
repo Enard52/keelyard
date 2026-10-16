@@ -97,6 +97,41 @@ async def complete(client: httpx.AsyncClient, model: dict[str, Any], system: str
     return j["choices"][0]["message"]["content"] or "", u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
 
 
+FREE_HINT = ('point [models.cheap] at a free model, e.g. base_url = "https://openrouter.ai/api/v1", '
+             'model = "<name>:free", api_key_env = "OPENROUTER_API_KEY"; or run Ollama locally (`ollama pull qwen2.5-coder:7b`)')
+
+
+def explain(e: BaseException) -> str:
+    """One line a person can act on, instead of an httpx traceback summary. Never includes request headers (keys)."""
+    if isinstance(e, httpx.HTTPStatusError):
+        url, code = str(e.request.url), e.response.status_code
+        if code in (401, 403):
+            return f"{url} rejected the API key (HTTP {code}). Hint: check the variable named in api_key_env"
+        if code == 404:
+            return f"{url} says not found (HTTP 404): wrong base_url, or the model is not available there. Hint: {FREE_HINT}"
+        if code == 429:
+            return f"{url} is rate-limiting (HTTP 429) after retries. Hint: lower [swarm].concurrency or try later"
+        if code == 402:
+            return f"{url} wants payment (HTTP 402). Hint: use a ':free' model; keelyard never needs a paid one"
+        return f"{url} answered HTTP {code}"
+    if isinstance(e, httpx.ConnectError | httpx.ConnectTimeout):
+        url = str(e.request.url) if getattr(e, "_request", None) is not None else "the helper model"
+        return f"cannot reach {url}. Hint: {FREE_HINT}"
+    if isinstance(e, httpx.TimeoutException):
+        return "the helper model timed out. Hint: a smaller model, or raise [models.<key>].timeout"
+    return f"{type(e).__name__}: {str(e)[:200]}"
+
+
+def preflight(model: dict[str, Any]) -> str | None:
+    """Problems we can see before spending a call."""
+    env = model.get("api_key_env") or ""
+    if model.get("model") in ("", "set-me"):
+        return f"model {model.get('model')!r} is not set. Hint: {FREE_HINT}"
+    if env and not os.environ.get(env):
+        return f"${env} is not set (api_key_env for {model.get('model')}). Hint: export it, or {FREE_HINT}"
+    return None
+
+
 async def _with_retry(fn, attempts: int | None = None):
     attempts = attempts or int(os.environ.get("KEELYARD_RETRIES", "4"))  # free tiers rate-limit hard
     for i in range(attempts):
@@ -448,7 +483,7 @@ class Swarm:
                 r.notes.append(f"{r.candidates} candidates over {r.attempts} round(s)" + (", escalated" if r.escalated else ""))
             return r
         except Exception as e:  # noqa: BLE001 - one failed worker must not sink the swarm
-            return Result(t.id, t.kind, False, False, "", [f"{type(e).__name__}: {str(e)[:200]}"], r.tokens_in, r.tokens_out,
+            return Result(t.id, t.kind, False, False, "", [explain(e)], r.tokens_in, r.tokens_out,
                           r.attempts, r.candidates)
 
     async def run(self, tasks: list[Task]) -> list[Result]:
@@ -494,7 +529,9 @@ def plan(cfg: Config, goal: str, files: list[str] | None = None, max_tasks: int 
     tasks = []
     for i, (f, syms) in enumerate(list(by_file.items())[:max_tasks], 1):
         focus = f" Focus on {', '.join(syms)}." if syms else ""
-        tasks.append(Task(kind=kind, prompt=f"{goal.strip()}{focus} Only change/answer about {f}.", files=[f], id=i,
+        g = goal.strip()
+        g = g if g.endswith((".", "?", "!")) else g + "."
+        tasks.append(Task(kind=kind, prompt=f"{g}{focus} Only change/answer about {f}.", files=[f], id=i,
                           symbols=syms))
     return tasks
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import dataclasses
 import datetime as dt
 import json
 import sys
@@ -776,17 +777,37 @@ def do_swarm(a):
         return 0, {"tasks": tasks}
     try:
         raw = json.loads(a.tasks.read_text(encoding="utf-8"))
-        tasks = [Task(**t) for t in raw]
+        if isinstance(raw, dict) and raw.get("ok") is False:
+            raise Fail(f"{a.tasks} holds an error from `swarm plan`, not tasks: {raw.get('error')}. "
+                       f"Hint: {raw.get('hint') or 'fix the plan first'}")
+        if isinstance(raw, dict) and "tasks" in raw:  # straight from `keelyard swarm plan --json > tasks.json`
+            raw = raw["tasks"]
+        if not isinstance(raw, list) or not all(isinstance(t, dict) for t in raw):
+            raise TypeError("expected a list of objects")
+        known = {f.name for f in dataclasses.fields(Task)}
+        tasks = [Task(**{k: v for k, v in t.items() if k in known}) for t in raw]
+        if not tasks:
+            raise Fail(f"{a.tasks} has no tasks. Hint: `keelyard swarm plan \"<goal>\" --json > {a.tasks}`")
     except FileNotFoundError:
         raise Fail(f"{a.tasks}: no such file") from None
     except (ValueError, TypeError) as e:
-        raise Fail(f"{a.tasks} must be a JSON list of {{kind, prompt, files}} objects ({e}).") from None
+        raise Fail(f"{a.tasks} must be a JSON list of {{kind, prompt, files}} objects ({e}). "
+                   f"Hint: `keelyard swarm plan \"<goal>\" --json > {a.tasks}` writes one") from None
     cfg = _cfg()
+    from .swarm import preflight
+
+    key = a.model or cfg.section("swarm").get("helper_model", "cheap")
+    try:
+        problem = preflight(cfg.model(key))
+    except KeyError as e:
+        raise Fail(f"{e.args[0]}. Hint: add a [models.{key}] section, or pick one with --model") from None
+    if problem:
+        raise Fail(f"helper model [models.{key}]: {problem}")
     extra = {}
     if cfg.section("swarm").get("cooperative", True) and not a.basic:
         from .coop import Coop, summary
 
-        sw = Coop(cfg, best_of=a.best_of, retries=a.retries)
+        sw = Coop(cfg, model_key=a.model, best_of=a.best_of, retries=a.retries)
         results = asyncio.run(sw.run(tasks))
         extra = summary(sw, results)
     else:
@@ -795,7 +816,11 @@ def do_swarm(a):
         print(format_results(results))
         if extra:
             print(f"tokens {extra['tokens']:,} · {extra['calls']} calls · by model {extra['tokens_by_model']}")
-    return 0, {"verified": sum(r.verified for r in results), "total": len(results), **extra,
+    if results and not any(r.ok for r in results):
+        code = CHECK_FAILED  # every helper call failed: scripts must not read that as success
+    else:
+        code = 0
+    return code, {"verified": sum(r.verified for r in results), "total": len(results), **extra,
                "results": [r.__dict__ for r in results]}
 
 

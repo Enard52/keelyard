@@ -43,9 +43,9 @@ def line(state: str, label: str, detail: str = "", width: int = 18) -> None:
 def error(message: str) -> None:
     """Print `error: ...` and, if the message carries one, a separate hint line."""
     msg, _, hint = message.partition("Hint:")
-    err.print(f"[bad]error:[/] {escape(msg.strip())}")
+    err.print(f"[bad]error:[/] {escape(msg.strip())}", soft_wrap=True)  # no hard wraps: copy-pasteable, no trailing spaces
     if hint.strip():
-        err.print(f"[muted]hint:[/]  {escape(hint.strip())}")
+        err.print(f"[muted]hint:[/]  {escape(hint.strip())}", soft_wrap=True)
 
 
 def plain(text: str) -> None:
