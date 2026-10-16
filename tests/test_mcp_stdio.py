@@ -58,3 +58,40 @@ def test_workflow_tool_returns_guides(project):
 
     out = mcp_server.workflow("debug")
     assert "Reproduce" in out["steps"]
+
+
+def test_lazy_toolset_is_smaller_and_still_reaches_every_tool(project):
+    """Mechanism 6: only a few schemas up front; the rest is discoverable and callable, and never costs more."""
+    import json
+
+    def size(ts):
+        return sum(len(json.dumps(t.model_dump(exclude_none=True, by_alias=True))) for t in ts) // 4
+
+    lazy, core = asyncio.run(_tools(project, "lazy")), asyncio.run(_tools(project, None))
+    assert {t.name for t in lazy} == {"read_file", "run_compact", "find_symbol", "proof_status", "tool_search", "tool_call"}
+    assert size(lazy) < size(core) * 0.6, (size(lazy), size(core))
+
+    async def flow():
+        env = {**os.environ, "KEELYARD_MCP_TOOLS": "lazy"}
+        params = StdioServerParameters(command=sys.executable, args=["-m", "keelyard.cli", "mcp"], cwd=str(project), env=env)
+        async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
+            await s.initialize()
+            found = json.loads((await s.call_tool("tool_search", {"query": "outline signatures of a file"})).content[0].text)
+            ran = json.loads((await s.call_tool("tool_call", {"name": "outline", "arguments": {"path": "app.py"}})).content[0].text)
+            bad = await s.call_tool("tool_call", {"name": "tool_call", "arguments": {}})
+            return found, ran, bad
+    found, ran, bad = asyncio.run(flow())
+    assert found["tools"][0]["name"] == "outline" and "properties" in found["tools"][0]["input_schema"]
+    assert "def add" in ran["outline"]
+    assert getattr(bad, "is_error", None) or getattr(bad, "isError", None)
+
+
+def test_lazy_falls_back_to_core_if_not_smaller(monkeypatch):
+    from keelyard import mcp_server
+
+    monkeypatch.setattr(mcp_server, "LAZY", mcp_server.LAZY + tuple(n for n in mcp_server._ALL or () if n not in mcp_server.META))
+    mcp_server.configure_tools("core")
+    monkeypatch.setattr(mcp_server, "LAZY", tuple(mcp_server._ALL))
+    names = mcp_server.configure_tools("lazy")
+    assert set(names) == set(mcp_server.CORE)
+    mcp_server.configure_tools("all")

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import functools
 import inspect
+import json
+import re
 from typing import Annotated, Any, Literal
 
 from pydantic import Field
@@ -379,6 +381,43 @@ def work_state(
     return {"state": ws.render(600) or "empty"}
 
 
+@_tool(_ann("Find a tool", read_only=True))
+def tool_search(
+    query: Annotated[str, Field(description='What you want to do, e.g. "undo my last edit" or "screenshot".')],
+    limit: Annotated[int, Field(ge=1, le=10, description="Max tools returned.")] = 3,
+) -> dict[str, Any]:
+    """Find a keelyard tool that is not loaded yet. Returns name, description and input schema;
+    run it with tool_call(name, arguments)."""
+    pool = _ALL or getattr(getattr(mcp, "_tool_manager", None), "_tools", {})
+    words = set(re.findall(r"[a-z]{3,}", query.lower()))
+    scored = []
+    for name, t in pool.items():
+        if name in META:
+            continue
+        hay = f"{name.replace('_', ' ')} {t.description or ''}".lower()
+        score = sum(3 if w in name else 1 for w in words if w in hay)
+        if score:
+            scored.append((-score, name, t))
+    scored.sort(key=lambda x: (x[0], x[1]))
+    found = [{"name": n, "description": (t.description or "").strip(), "input_schema": _strip_titles(t.parameters)}
+             for _, n, t in scored[:limit]]
+    return {"query": query, "tools": found, "remaining": max(0, len(scored) - limit)}
+
+
+@_tool(_ann("Run a tool"))
+async def tool_call(
+    name: Annotated[str, Field(description="Tool name from tool_search.")],
+    arguments: Annotated[dict[str, Any], Field(description="Arguments matching that tool's input_schema.")] = {},  # noqa: B006
+) -> dict[str, Any]:
+    """Run any keelyard tool by name, including ones not loaded up front (find them with tool_search)."""
+    pool = _ALL or getattr(getattr(mcp, "_tool_manager", None), "_tools", {})
+    if name in META or name not in pool:
+        raise ToolError(f"unknown tool {name!r}. Hint: tool_search")
+    ctx = mcp.get_context() if hasattr(mcp, "get_context") else None  # none of our tools take a context
+    result = await pool[name].run(arguments, context=ctx, convert_result=False)
+    return result if isinstance(result, dict) else {"result": result}
+
+
 @_tool(_ann("keelyard status", read_only=True))
 def status() -> dict[str, Any]:
     """One call to orient yourself: version, project root, snapshot count, proof state."""
@@ -400,6 +439,16 @@ def workflow(name: Annotated[Literal["plan", "debug", "review"], Field(descripti
 # Loaded by default: the tools the workflow needs. Hooks do the rest without any schema cost.
 CORE = ("proof_requirements", "proof_check", "proof_run_tests", "proof_status", "rewind_list", "rewind_to", "read_file",
         "run_compact", "recall", "find_symbol", "memory_search", "swarm", "workflow", "work_state")
+
+# "lazy": only these schemas are sent up front; every other tool is found with tool_search and run with tool_call
+LAZY = ("read_file", "run_compact", "find_symbol", "proof_status", "tool_search", "tool_call")
+META = ("tool_search", "tool_call")
+
+
+def _schema_size(tools) -> int:
+    """Approximate tokens the tool list costs in every request (what tools/list sends)."""
+    return sum(len(json.dumps({"name": t.name, "description": t.description, "inputSchema": _strip_titles(t.parameters),
+                               "outputSchema": getattr(t, "output_schema", None)})) for t in tools) // 4
 
 
 def _strip_titles(schema):
@@ -426,10 +475,16 @@ def configure_tools(selection: str | list[str] | None = None, app_url: bool = Fa
         _ALL = dict(tools)
     tools.clear()
     tools.update(_ALL)
+    core = set(CORE) | ({"proof_screenshot"} if app_url else set())
     if selection in (None, "core"):
-        keep = set(CORE) | ({"proof_screenshot"} if app_url else set())
+        keep = core
     elif selection == "all":
-        keep = set(tools)
+        keep = set(tools) - set(META)
+    elif selection == "lazy":
+        keep = set(LAZY)
+        # never increase tokens: lazy must cost less up front than core, overhead (the two meta tools) included
+        if _schema_size(_ALL[n] for n in keep) >= _schema_size(_ALL[n] for n in core):
+            keep = core
     else:
         keep = set(selection)
     for name in [n for n in tools if n not in keep]:

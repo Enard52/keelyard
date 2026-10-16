@@ -83,6 +83,9 @@ budget_warn_at = 0.6
 # Tools the MCP server offers. Every schema costs tokens in every session, so the default is the 13 the
 # workflow needs. "all" adds outline, project_map, rewind_diff, usage_report, route_task, swarm_plan,
 # swarm_verify, status (and proof_screenshot, which "core" adds by itself when [proof].app_url is set).
+# "lazy" sends only read_file, run_compact, find_symbol, proof_status plus tool_search/tool_call (about 60%
+# fewer schema tokens than "core"); every other tool is found and run on demand. It falls back to "core"
+# by itself if it would not be smaller.
 tools = "core"
 
 [saver]
