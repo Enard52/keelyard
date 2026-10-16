@@ -9,10 +9,10 @@ import threading
 
 import httpx
 import pytest
+from test_swarm2 import setup, transport
 
 from keelyard.coop import Coop
 from keelyard.swarm import Task, explain, preflight
-from test_swarm2 import setup, transport
 
 
 def ky(*args, cwd, env=None):
