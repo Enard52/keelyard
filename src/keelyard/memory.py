@@ -93,7 +93,57 @@ def read_codex(path: Path) -> Iterator[Turn]:
             yield Turn("codex", session, cwd, j.get("timestamp", ""), "tool", f"[result] {out[:TOOL_KEEP]}")
 
 
+def opencode_db(storage: Path) -> Iterator[tuple[str, str, int, dict, list[dict]]]:
+    """OpenCode 1.x (recent) and 2.x keep sessions in <data>/opencode/opencode.db, not storage/*.json.
+    Yields (session_id, directory, created_ms, message, parts). Opens the file read-only and reads only the
+    session, message and part tables (the same file holds account credentials; those are never touched)."""
+    db = storage.parent / "opencode.db"
+    if not db.is_file():
+        return
+    try:
+        con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True, timeout=2)
+    except sqlite3.Error:
+        return
+    try:
+        dirs = dict(con.execute("SELECT id, directory FROM session"))
+        parts: dict[str, list[dict]] = {}
+        for mid, data in con.execute("SELECT message_id, data FROM part ORDER BY time_created, id"):
+            try:
+                parts.setdefault(mid, []).append(json.loads(data))
+            except (TypeError, ValueError):
+                continue
+        for mid, sid, created, data in con.execute("SELECT id, session_id, time_created, data FROM message "
+                                                   "ORDER BY time_created, id"):
+            try:
+                m = json.loads(data)
+            except (TypeError, ValueError):
+                continue
+            m.setdefault("id", mid)
+            yield sid, dirs.get(sid, ""), created or (m.get("time") or {}).get("created") or 0, m, parts.get(mid, [])
+    except sqlite3.Error:
+        return  # an older or newer schema we do not know: skip rather than crash the index
+    finally:
+        con.close()
+
+
+def _opencode_text(parts: list[dict]) -> str:
+    texts = []
+    for part in parts:
+        if part.get("type") == "text":
+            texts.append(part.get("text", ""))
+        elif part.get("type") == "tool":
+            st = part.get("state") or {}
+            texts.append(f"[tool {part.get('tool')}] {json.dumps(st.get('input'))[:TOOL_KEEP]}")
+            if st.get("output"):
+                texts.append(f"[result] {str(st['output'])[:TOOL_KEEP]}")
+    return "\n".join(t for t in texts if t)
+
+
 def read_opencode(storage: Path) -> Iterator[Turn]:
+    for sid, directory, created, m, parts in opencode_db(storage):
+        text = _opencode_text(parts)
+        if text.strip():
+            yield Turn("opencode", sid, directory, str(created), m.get("role", ""), text)
     sessions = {}
     for f in (storage / "session").glob("*/*.json"):
         try:
@@ -108,20 +158,13 @@ def read_opencode(storage: Path) -> Iterator[Turn]:
                 m = json.loads(mf.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 continue
-            texts = []
+            parts = []
             for pf in sorted((storage / "part" / m.get("id", mf.stem)).glob("*.json")):
                 try:
-                    part = json.loads(pf.read_text(encoding="utf-8"))
+                    parts.append(json.loads(pf.read_text(encoding="utf-8")))
                 except json.JSONDecodeError:
                     continue
-                if part.get("type") == "text":
-                    texts.append(part.get("text", ""))
-                elif part.get("type") == "tool":
-                    st = part.get("state") or {}
-                    texts.append(f"[tool {part.get('tool')}] {json.dumps(st.get('input'))[:TOOL_KEEP]}")
-                    if st.get("output"):
-                        texts.append(f"[result] {str(st['output'])[:TOOL_KEEP]}")
-            text = "\n".join(t for t in texts if t)
+            text = _opencode_text(parts)
             if text.strip():
                 ts = str((m.get("time") or {}).get("created", ""))
                 yield Turn("opencode", sid, sessions.get(sid, ""), ts, m.get("role", ""), text)
@@ -186,7 +229,7 @@ class Memory:
     def ingest(self, sources: list[tuple[str, Path]] | None = None) -> dict[str, int]:
         stats: dict[str, int] = {}
         for agent, base in sources or default_sources():
-            if not base.exists():
+            if not base.exists() and not (agent == "opencode" and (base.parent / "opencode.db").is_file()):
                 continue
             added = 0
             if agent == "claude-code":

@@ -71,14 +71,26 @@ def _codex(base: Path):
                            u.get("output_tokens", 0), cached, 0, None)
 
 
-def _opencode(storage: Path):
-    import datetime as dt
+def _opencode_messages(storage: Path):
+    from .memory import opencode_db
 
+    seen = set()  # OpenCode migrates storage/*.json into opencode.db and may leave the files: count each message once
+    for _sid, _dir, _created, m, _parts in opencode_db(storage):
+        seen.add(m["id"])
+        yield m
     for f in (storage / "message").glob("*/*.json"):
         try:
             m = json.loads(f.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
+        if m.get("id", f.stem) not in seen:
+            yield m
+
+
+def _opencode(storage: Path):
+    import datetime as dt
+
+    for m in _opencode_messages(storage):
         t = m.get("tokens")
         if m.get("role") != "assistant" or not t:
             continue
@@ -94,7 +106,7 @@ def collect(prices: dict | None = None, sources=None, by: str = "day") -> dict[s
     readers = {"claude-code": _claude, "codex": _codex, "opencode": _opencode}
     rows: dict[str, Row] = defaultdict(Row)
     for agent, base in sources or default_sources():
-        if not base.exists():
+        if not base.exists() and not (agent == "opencode" and (base.parent / "opencode.db").is_file()):
             continue
         for ag, day, model, i, o, cr, cw, cost in readers[agent](base):
             key = {"day": f"{day} {ag}", "model": f"{ag} {model}", "agent": ag}[by]
