@@ -60,8 +60,14 @@ def test_every_text_file_access_is_utf8():
 def test_hook_reads_non_ascii_payload(home, tmp_path):  # noqa: F811
     p = _proj(tmp_path)
     (p / "app.py").write_text("# Qarshi shahri — привет ✓\n", encoding="utf-8")
-    assert ky("init", "--agent", "claude", cwd=p).returncode == 0
+    assert ky("init", "--agent", "claude", "--json", cwd=p).returncode == 0
     payload = json.dumps({"session_id": "s", "cwd": str(p), "hook_event_name": "UserPromptSubmit",
                           "prompt": "funksiyani tuzat — исправь ✓"}, ensure_ascii=False)
-    r = ky("hook", "claude", "UserPromptSubmit", cwd=p, inp=payload)
-    assert r.returncode == 0, r.stderr
+    import os
+    import sys
+    env = {k: v for k, v in os.environ.items() if k != "KEELYARD_ROOT"}
+    r = subprocess.run([sys.executable, "-m", "keelyard.cli", "hook", "claude", "UserPromptSubmit"], cwd=p, env=env,
+                       input=payload.encode("utf-8"), capture_output=True, timeout=120)  # agents send UTF-8 bytes
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
+    out = r.stdout.decode("utf-8")  # keelyard must answer in UTF-8 too, whatever the console code page
+    json.loads(out) if out.strip() else None
