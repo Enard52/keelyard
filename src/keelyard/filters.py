@@ -148,7 +148,8 @@ LIB_FRAME = re.compile(r"(site-packages|dist-packages|[\\/]lib[\\/]python3?[\d.]
 BANNER = re.compile(r"^([=_])\1{2,} (.*?) \1{3,}$")
 
 
-BLOCK_START = re.compile(r"^warning(\[\w+\])?: (?!`[^`]+` \(\w+( test)?\) generated)|^---- .* stdout ----|^\s*● |^\s*--- FAIL|^\s*(FAIL|✕|×|✗)\s|^\s*\d+\) |panicked at")
+BLOCK_START = re.compile(r"^warning(\[\w+\])?: (?!`[^`]+` \(\w+( test)?\) generated)|"
+                         r"^---- .* stdout ----|^\s*● |^\s*--- FAIL|^\s*(FAIL|✕|×|✗)\s|^\s*\d+\) |panicked at")
 SUMMARY = re.compile(r"(?i)^test result:|^(FAIL|ok)\s+\S+\s+[\d.]+s|^tests?:\s|^test suites?:|^\s*(passed|failed|skipped)\b|"
                      r"^error(\[|:)|^\s*failures:$|^\s{4}\S+::\S+$|\b\d+ (passing|failing|passed|failed)\b")
 NOISE = re.compile(r"^note: run with `RUST_BACKTRACE|^\s+at (node:|.*node_modules)")

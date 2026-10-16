@@ -422,6 +422,14 @@ def _checks() -> list[tuple[str, str, str, str]]:
             rows.append(("project", "warn", "hook errors", f"see .keelyard/hook.log ({last})"))
         if cfg.raw.get("models", {}).get("strong", {}).get("model") == "set-me":
             rows.append(("project", "skip", "models.strong", "not set (only swarm/route use it)"))
+    if has:
+        from .proof import gate_status
+
+        g = gate_status(cfg)
+        rows.append(("project", "ok" if g["state"] == "hooked" else "warn", "proof gate",
+                     f"live ({', '.join(g['agents'])})" if g["state"] == "hooked" else f"{g['state']}: {g['why']}"))
+        if Shadow(cfg).interrupted():
+            rows.append(("project", "bad", "rewind", "an earlier rewind did not finish. Hint: keelyard rewind recover"))
     found = detect()
     for x in AGENTS:
         if installed(x, root):
