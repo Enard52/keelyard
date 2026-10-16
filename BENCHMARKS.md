@@ -1,4 +1,30 @@
 
+## Token-saving mechanisms, measured locally (Oct 16, 2026)
+
+`python bench/mechanisms.py` (no model, no network, $0). Tokens are `chars / 4`. Fixtures: this repo,
+the installed `httpx` package source, and the two-file `examples/arena/discount/repo`. Each row compares
+keelyard with what an agent does without it, and checks the agent still gets what it needs.
+Raw numbers: [`bench/mechanisms.json`](https://github.com/akobirjontulqinovfuture/keelyard/blob/main/bench/mechanisms.json).
+
+| mechanism | baseline | keelyard | keelyard repo | httpx | discount (2 files) | correctness check |
+|---|---|---|---|---|---|---|
+| 1 find code | grep the name, read the whole defining file | ranked `find_symbol` page + outline + the definition's lines + `related` | 16,868 → 3,691 (−78%) | 54,731 → 16,717 (−69%) | 107 → 108 (**+1%**) | the definition is in the slice read |
+| 2 re-reads | read, re-read, read after a 1-line edit (5 largest files) | full, "unchanged" notice, diff | 127,203 → 43,253 (−66%) | 146,937 → 49,689 (−66%) | 456 → 387 (−15%) | diff applied to the first read = the edited file; `force=true` returns all of it |
+| 3 logs, real `pytest -v` | raw output | `filter_output` | 1,233 → 9 (all passed) | – | 401 → 149 (−63%, 2 failures) | every error/failure/count line kept; failing test ids kept |
+| 3 logs, corpus (10 tools, pytest padded with 300 passes) | raw | filtered | 7,965 → 1,502 (−81%) | | | same |
+| 4 paging | every match in one response | first page of 20 + `remaining`/`next_offset` | 8,820 → 416 (−95%) | 7,007 → 324 (−95%) | 99 → 99 (0%) | walking every page returns every result in order |
+| 5 work state | re-read the 3 changed files after a compaction (modeled) | `work_state` render | 26,574 → 241 | 33,055 → 182 | 177 → 111 | every ref resolves to a real file line or command |
+| 6 tool schemas per request | `core` (14 tools) | `lazy` (6 tools) | 2,319 → 927 (−60%) | | | every hidden core tool is found by `tool_search` |
+
+What this does not show:
+- Row 1 on a tiny repo is **one token worse**: when the file is smaller than an outline, just read it.
+- Row 4 saves only when the answer is on the first page; reading every page costs slightly more than one dump.
+- Row 5's baseline is a model of what an agent re-reads, not a measured session.
+- Row 6: each on-demand tool use (search + call) adds about 309 tokens that stay in context, so `lazy` is
+  smaller only while a session uses fewer than 4 distinct hidden tools. The proof workflow alone uses about 4,
+  which is why `core` stays the default and `lazy` is opt-in.
+- None of this was measured in a live agent session.
+
 ## Real agent run: OpenCode 2.0.22 on Windows 11 (Oct 15, 2026)
 
 One run each, same task and same free model (`opencode/big-pickle`, cost reported by OpenCode: $0).

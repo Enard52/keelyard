@@ -1,7 +1,7 @@
 {
  "keelyard": {
   "1 find code": {
-   "before": 16868,
+   "before": 16969,
    "after": 3691,
    "correct": true,
    "check": "the top-ranked definition's own lines are in the slice read"
@@ -19,10 +19,10 @@
    "check": "every error/failure/count line is kept"
   },
   "4 paging": {
-   "before": 8820,
+   "before": 8849,
    "after": 416,
    "correct": true,
-   "check": "'test': 351 results; walking every page returns all of them in order, none lost",
+   "check": "'test': 352 results; walking every page returns all of them in order, none lost",
    "note": "saves only when the answer is on page 1; reading every page costs slightly more than one dump"
   },
   "5 work state": {

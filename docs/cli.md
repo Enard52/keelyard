@@ -51,6 +51,7 @@ commands:
     recall     print the full output that `run` shortened
     code       outline a file, map the project, find a symbol
     memory     search past sessions across all your agents
+    state      compact work state: requirements, decisions, changes, open questions
     usage      tokens and cost from your local agent logs
     swarm      fan small, checkable tasks out to a cheap model
     arena      run one task across agents and models, compare results
@@ -69,8 +70,8 @@ Run `keelyard <command> --help` for examples. Every command accepts --json.
 ## init
 
 ```text
-usage: keelyard <command> [options] init [-h] [--json] [--agent {claude,codex,opencode}]
-                                         [--no-agents] [--dry-run] [--global]
+usage: keelyard init [-h] [--json] [--agent {claude,codex,opencode}] [--no-agents] [--dry-run]
+                     [--preset {lean,balanced,max-quality}] [--codex-project-mcp] [--global]
 
 set up this project and wire the agents found on this machine
 
@@ -81,6 +82,13 @@ options:
                         wire only this agent (repeatable)
   --no-agents           create the config but wire no agent
   --dry-run             print what would change and stop
+  --preset {lean,balanced,max-quality}
+                        lean = fewest tokens (trimmed agent prompt/tools, capped output); balanced
+                        = default; max-quality = every keelyard tool over MCP. `keelyard uninstall
+                        <agent>` reverts it
+  --codex-project-mcp   Codex: register the keelyard MCP server in this project's
+                        .codex/config.toml instead of asking you to edit ~/.codex/config.toml
+                        (Codex reads it only for trusted projects)
   --global              wire the agents for every project of this user (~/.claude, ~/.codex,
                         ~/.config/opencode); projects set themselves up on their first session
 
@@ -93,7 +101,7 @@ examples:
 ## doctor
 
 ```text
-usage: keelyard <command> [options] doctor [-h] [--json]
+usage: keelyard doctor [-h] [--json]
 
 check the installation and wiring; exits 3 if something is broken
 
@@ -109,7 +117,7 @@ examples:
 ## status
 
 ```text
-usage: keelyard <command> [options] status [-h] [--json]
+usage: keelyard status [-h] [--json]
 
 show what keelyard knows about this project
 
@@ -125,7 +133,7 @@ examples:
 ## selftest
 
 ```text
-usage: keelyard <command> [options] selftest [-h] [--json] [--keep]
+usage: keelyard selftest [-h] [--json] [--keep]
 
 a scripted agent runs a full task through MCP and hooks in a temp folder
 
@@ -142,12 +150,13 @@ examples:
 ## rewind
 
 ```text
-usage: keelyard <command> [options] rewind [-h] <action> ...
+usage: keelyard rewind [-h] [--json] <action> ...
 
 list, inspect and undo agent steps
 
 options:
   -h, --help  show this help message and exit
+  --json      print one JSON object on stdout (for scripts and agents)
 
 actions:
   <action>
@@ -156,6 +165,7 @@ actions:
     to        restore files to a step (undoable)
     fork      copy a step into a new folder
     snap      take a snapshot now
+    recover   finish a rewind that was interrupted (puts back the state from just before it)
 
 examples:
   keelyard rewind                  # every step agents took, newest last
@@ -169,7 +179,7 @@ examples:
 ### rewind list
 
 ```text
-usage: keelyard <command> [options] rewind list [-h] [--json] [-i] [-n N]
+usage: keelyard rewind list [-h] [--json] [-i] [-n N]
 
 list snapshots
 
@@ -183,7 +193,7 @@ options:
 ### rewind show
 
 ```text
-usage: keelyard <command> [options] rewind show [-h] [--json] step
+usage: keelyard rewind show [-h] [--json] step
 
 show the diff a step made
 
@@ -198,7 +208,7 @@ options:
 ### rewind to
 
 ```text
-usage: keelyard <command> [options] rewind to [-h] [--json] step
+usage: keelyard rewind to [-h] [--json] step
 
 restore files to a step (undoable)
 
@@ -213,7 +223,7 @@ options:
 ### rewind fork
 
 ```text
-usage: keelyard <command> [options] rewind fork [-h] [--json] step dest
+usage: keelyard rewind fork [-h] [--json] step dest
 
 copy a step into a new folder
 
@@ -229,7 +239,7 @@ options:
 ### rewind snap
 
 ```text
-usage: keelyard <command> [options] rewind snap [-h] [--json]
+usage: keelyard rewind snap [-h] [--json]
 
 take a snapshot now
 
@@ -241,21 +251,24 @@ options:
 ## proof
 
 ```text
-usage: keelyard <command> [options] proof [-h] <action> ...
+usage: keelyard proof [-h] [--json] <action> ...
 
 the evidence an agent collected before saying done
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help      show this help message and exit
+  --json          print one JSON object on stdout (for scripts and agents)
 
 actions:
   <action>
-    status    what is proven and what is missing
-    add       add requirements
-    check     mark a requirement met, with evidence
-    test      run the test command and record the result
-    shot      screenshot the app
-    report    write the HTML report
+    status        what is proven and what is missing
+    add           add requirements
+    check         mark a requirement met, with evidence
+    test          run the test command and record the result
+    shot          screenshot the app
+    accept-tests  acknowledge changed tests (a real refactor); shown as agent-claimed
+    reset         start this session's proof over (e.g. after a failed signature check)
+    report        write the HTML report
 
 examples:
   keelyard proof status
@@ -268,7 +281,7 @@ examples:
 ### proof status
 
 ```text
-usage: keelyard <command> [options] proof status [-h] [--json]
+usage: keelyard proof status [-h] [--json]
 
 what is proven and what is missing
 
@@ -280,7 +293,7 @@ options:
 ### proof add
 
 ```text
-usage: keelyard <command> [options] proof add [-h] [--json] items [items ...]
+usage: keelyard proof add [-h] [--json] items [items ...]
 
 add requirements
 
@@ -295,7 +308,7 @@ options:
 ### proof check
 
 ```text
-usage: keelyard <command> [options] proof check [-h] [--json] id evidence
+usage: keelyard proof check [-h] [--json] id evidence
 
 mark a requirement met, with evidence
 
@@ -311,7 +324,7 @@ options:
 ### proof test
 
 ```text
-usage: keelyard <command> [options] proof test [-h] [--json] [--cmd TEST_CMD] {before,after}
+usage: keelyard proof test [-h] [--json] [--cmd TEST_CMD] {before,after}
 
 run the test command and record the result
 
@@ -327,7 +340,7 @@ options:
 ### proof shot
 
 ```text
-usage: keelyard <command> [options] proof shot [-h] [--json] [url]
+usage: keelyard proof shot [-h] [--json] [url]
 
 screenshot the app
 
@@ -342,7 +355,7 @@ options:
 ### proof report
 
 ```text
-usage: keelyard <command> [options] proof report [-h] [--json] [--open]
+usage: keelyard proof report [-h] [--json] [--open]
 
 write the HTML report
 
@@ -355,7 +368,7 @@ options:
 ## run
 
 ```text
-usage: keelyard <command> [options] run [-h] [--json] ...
+usage: keelyard run [-h] [--json] ...
 
 run a command and print a compact version of its output
 
@@ -375,7 +388,7 @@ examples:
 ## filter
 
 ```text
-usage: keelyard <command> [options] filter [-h] [--json] [--for FOR_CMD]
+usage: keelyard filter [-h] [--json] [--for FOR_CMD]
 
 compact output piped on stdin
 
@@ -391,7 +404,7 @@ examples:
 ## recall
 
 ```text
-usage: keelyard <command> [options] recall [-h] [--json] id
+usage: keelyard recall [-h] [--json] id
 
 print the full output that `run` shortened
 
@@ -409,18 +422,20 @@ examples:
 ## code
 
 ```text
-usage: keelyard <command> [options] code [-h] <action> ...
+usage: keelyard code [-h] [--json] <action> ...
 
 outline a file, map the project, find a symbol
 
 options:
   -h, --help  show this help message and exit
+  --json      print one JSON object on stdout (for scripts and agents)
 
 actions:
   <action>
     outline   signatures only
     map       compact project map
-    find      where a symbol is defined
+    find      where a symbol is defined (best first, paged)
+    related   what a file imports, who imports it, and its tests
 
 examples:
   keelyard code outline src/app.py
@@ -431,7 +446,7 @@ examples:
 ### code outline
 
 ```text
-usage: keelyard <command> [options] code outline [-h] [--json] path
+usage: keelyard code outline [-h] [--json] path
 
 signatures only
 
@@ -446,7 +461,7 @@ options:
 ### code map
 
 ```text
-usage: keelyard <command> [options] code map [-h] [--json]
+usage: keelyard code map [-h] [--json]
 
 compact project map
 
@@ -458,27 +473,31 @@ options:
 ### code find
 
 ```text
-usage: keelyard <command> [options] code find [-h] [--json] name
+usage: keelyard code find [-h] [--json] [--refs] [--offset OFFSET] [--limit LIMIT] name
 
-where a symbol is defined
+where a symbol is defined (best first, paged)
 
 positional arguments:
   name
 
 options:
-  -h, --help  show this help message and exit
-  --json      print one JSON object on stdout (for scripts and agents)
+  -h, --help       show this help message and exit
+  --json           print one JSON object on stdout (for scripts and agents)
+  --refs           also list call sites and uses
+  --offset OFFSET  skip this many results (next page)
+  --limit LIMIT    results per page (default 20)
 ```
 
 ## memory
 
 ```text
-usage: keelyard <command> [options] memory [-h] <action> ...
+usage: keelyard memory [-h] [--json] <action> ...
 
 search past sessions across all your agents
 
 options:
   -h, --help  show this help message and exit
+  --json      print one JSON object on stdout (for scripts and agents)
 
 actions:
   <action>
@@ -495,7 +514,7 @@ examples:
 ### memory index
 
 ```text
-usage: keelyard <command> [options] memory index [-h] [--json]
+usage: keelyard memory index [-h] [--json]
 
 read new sessions from Claude Code, Codex and OpenCode
 
@@ -507,9 +526,9 @@ options:
 ### memory search
 
 ```text
-usage: keelyard <command> [options] memory search [-h] [--json] [--project PROJECT]
-                                                  [--budget BUDGET]
-                                                  query
+usage: keelyard memory search [-h] [--json] [--project PROJECT] [--budget BUDGET]
+                              [--offset OFFSET]
+                              query
 
 full-text search
 
@@ -521,12 +540,13 @@ options:
   --json             print one JSON object on stdout (for scripts and agents)
   --project PROJECT
   --budget BUDGET    max characters returned (default 2400)
+  --offset OFFSET    skip this many hits (next page)
 ```
 
 ### memory stats
 
 ```text
-usage: keelyard <command> [options] memory stats [-h] [--json]
+usage: keelyard memory stats [-h] [--json]
 
 what is indexed
 
@@ -538,7 +558,7 @@ options:
 ## usage
 
 ```text
-usage: keelyard <command> [options] usage [-h] [--json] [--by {day,model,agent}]
+usage: keelyard usage [-h] [--json] [--by {day,model,agent}]
 
 tokens and cost from your local agent logs
 
@@ -555,12 +575,13 @@ examples:
 ## swarm
 
 ```text
-usage: keelyard <command> [options] swarm [-h] <action> ...
+usage: keelyard swarm [-h] [--json] <action> ...
 
 fan small, checkable tasks out to a cheap model
 
 options:
   -h, --help  show this help message and exit
+  --json      print one JSON object on stdout (for scripts and agents)
 
 actions:
   <action>
@@ -576,9 +597,9 @@ examples:
 ### swarm run
 
 ```text
-usage: keelyard <command> [options] swarm run [-h] [--json] [--model MODEL] [--best-of BEST_OF]
-                                              [--retries RETRIES] [--basic]
-                                              tasks
+usage: keelyard swarm run [-h] [--json] [--model MODEL] [--best-of BEST_OF] [--retries RETRIES]
+                          [--basic]
+                          tasks
 
 run tasks from a JSON file
 
@@ -597,12 +618,13 @@ options:
 ## arena
 
 ```text
-usage: keelyard <command> [options] arena [-h] <action> ...
+usage: keelyard arena [-h] [--json] <action> ...
 
 run one task across agents and models, compare results
 
 options:
   -h, --help  show this help message and exit
+  --json      print one JSON object on stdout (for scripts and agents)
 
 actions:
   <action>
@@ -617,7 +639,7 @@ examples:
 ### arena run
 
 ```text
-usage: keelyard <command> [options] arena run [-h] [--json] [--out OUT] [--only [NAME ...]] spec
+usage: keelyard arena run [-h] [--json] [--out OUT] [--only [NAME ...]] spec
 
 run a task spec
 
@@ -634,7 +656,7 @@ options:
 ### arena render
 
 ```text
-usage: keelyard <command> [options] arena render [-h] [--json] out
+usage: keelyard arena render [-h] [--json] out
 
 re-render the report from results.json
 
@@ -649,7 +671,7 @@ options:
 ## bench
 
 ```text
-usage: keelyard <command> [options] bench [-h] [--json]
+usage: keelyard bench [-h] [--json]
 
 measure savings on your own machine
 
@@ -665,7 +687,7 @@ examples:
 ## install
 
 ```text
-usage: keelyard <command> [options] install [-h] [--json] [--global] [{claude,codex,opencode}]
+usage: keelyard install [-h] [--json] [--global] [--codex-project-mcp] [{claude,codex,opencode}]
 
 wire one agent in this project
 
@@ -676,6 +698,9 @@ options:
   -h, --help            show this help message and exit
   --json                print one JSON object on stdout (for scripts and agents)
   --global              wire at user level (all agents if none named)
+  --codex-project-mcp   Codex: register the keelyard MCP server in this project's
+                        .codex/config.toml instead of asking you to edit ~/.codex/config.toml
+                        (Codex reads it only for trusted projects)
 
 examples:
   keelyard install claude
@@ -685,7 +710,7 @@ examples:
 ## uninstall
 
 ```text
-usage: keelyard <command> [options] uninstall [-h] [--json] [--global] [{claude,codex,opencode}]
+usage: keelyard uninstall [-h] [--json] [--global] [{claude,codex,opencode}]
 
 unwire one agent in this project
 

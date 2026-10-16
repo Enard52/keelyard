@@ -51,6 +51,9 @@ async def mcp() -> None:
           "```text", init.instructions, "```", "",
           "Every tool returns a JSON object (MCP structured content). Errors are MCP tool errors whose text "
           "says what went wrong and, where there is one, a `Hint:` with the fix.", "",
+          "These are the default (`core`) tools. `[mcp].tools = \"all\"` adds the rest; `\"lazy\"` sends only "
+          "`read_file`, `run_compact`, `find_symbol` and `proof_status` plus `tool_search` (find a hidden tool and its "
+          "schema) and `tool_call` (run it), and falls back to `core` if that would not be smaller.", "",
           "| tool | read-only | destructive | summary |", "|---|---|---|---|"]
     for t in tools:
         a = t.annotations

@@ -261,6 +261,19 @@ def m6_tools() -> dict:
 
 
 def main() -> None:
+    import os
+
+    saved_root = os.environ.get("KEELYARD_ROOT")
+    try:
+        _main()
+    finally:
+        if saved_root is None:
+            os.environ.pop("KEELYARD_ROOT", None)
+        else:
+            os.environ["KEELYARD_ROOT"] = saved_root
+
+
+def _main() -> None:
     results: dict = {}
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)

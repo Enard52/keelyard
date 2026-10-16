@@ -12,6 +12,8 @@ read_file(ranges) -> edit (auto-snapshotted; rewind_to undoes) -> run_compact ->
 
 Every tool returns a JSON object (MCP structured content). Errors are MCP tool errors whose text says what went wrong and, where there is one, a `Hint:` with the fix.
 
+These are the default (`core`) tools. `[mcp].tools = "all"` adds the rest; `"lazy"` sends only `read_file`, `run_compact`, `find_symbol` and `proof_status` plus `tool_search` (find a hidden tool and its schema) and `tool_call` (run it), and falls back to `core` if that would not be smaller.
+
 | tool | read-only | destructive | summary |
 |---|---|---|---|
 | [`proof_requirements`](#proof_requirements) |  |  | Record what the user asked for as a checklist. Call this first. Duplicate items are ignored. |
@@ -23,9 +25,10 @@ Every tool returns a JSON object (MCP structured content). Errors are MCP tool e
 | [`read_file`](#read_file) | yes |  | Read a project file. A repeat read of an unchanged file returns a one-line notice instead of the |
 | [`run_compact`](#run_compact) |  |  | Run a command and return output with failures, errors and file:line kept and noise dropped. |
 | [`recall`](#recall) | yes |  | Return the full raw output that run_compact or the shell-output filter shortened. |
-| [`find_symbol`](#find_symbol) | yes |  | Where is a symbol defined? Returns {"matches": ["path:line: signature", ...]}. |
+| [`find_symbol`](#find_symbol) | yes |  | Where is a symbol defined (best match first), and with refs=true where it is used. |
 | [`swarm`](#swarm) |  |  | Run small tasks on the configured helper model in parallel. Each answer is checked: citations (path:line) |
-| [`memory_search`](#memory_search) | yes |  | Search past Claude Code, Codex and OpenCode sessions. New sessions are indexed first. |
+| [`memory_search`](#memory_search) | yes |  | Search past Claude Code, Codex and OpenCode sessions, best match first. New sessions are indexed first. |
+| [`work_state`](#work_state) |  |  | Compact state that survives compaction: requirements, decisions, changed files, open questions. |
 | [`workflow`](#workflow) | yes |  | A short step-by-step guide: plan (plan-implement-verify), debug (loop), review (diff checklist). |
 
 ## proof_requirements
@@ -117,11 +120,14 @@ Return the full raw output that run_compact or the shell-output filter shortened
 
 ## find_symbol
 
-Where is a symbol defined? Returns {"matches": ["path:line: signature", ...]}.
+Where is a symbol defined (best match first), and with refs=true where it is used.
+Returns {"matches": [...], "remaining", "next_offset"?}; results are paged, never cut silently.
 
 | parameter | type | default | description |
 |---|---|---|---|
 | `name` | string | required | Function, class or type name, e.g. "Cart". |
+| `refs` | boolean | false | Also list call sites and uses (source before tests). |
+| `offset` | integer | 0 | Skip this many results; use next_offset from the last call. |
 
 ## swarm
 
@@ -136,14 +142,27 @@ With no helper model configured, returns {"mode": "plan", "subagent_tasks": [...
 
 ## memory_search
 
-Search past Claude Code, Codex and OpenCode sessions. New sessions are indexed first.
-Returns {"hits": [{"agent", "session", "project", "ts", "role", "snippet"}]}.
+Search past Claude Code, Codex and OpenCode sessions, best match first. New sessions are indexed first.
+Returns {"hits": [{"agent", "session", "project", "ts", "role", "snippet"}], "remaining", "next_offset"?}.
 
 | parameter | type | default | description |
 |---|---|---|---|
 | `query` | string | required | Words to look for, e.g. "stripe webhook signature". |
 | `this_project_only` | boolean | true | Only sessions that ran in this project. |
 | `budget_chars` | integer | 2400 | Max characters of snippets returned. |
+| `offset` | integer | 0 | Skip this many hits; use next_offset from the last call. |
+
+## work_state
+
+Compact state that survives compaction: requirements, decisions, changed files, open questions.
+Record each key decision with a ref to the file line or command that backs it.
+
+| parameter | type | default | description |
+|---|---|---|---|
+| `action` | "show" / "decision" / "question" / "resolve" | "show" | show, record, or resolve. |
+| `text` | string | "" | The decision or question, one line. |
+| `ref` | string | "" | Evidence: "path:line", "cmd: <command>" or "#<proof item>". Required for decisions. |
+| `item` | integer | 0 | Id to resolve. |
 
 ## workflow
 

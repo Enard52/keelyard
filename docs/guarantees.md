@@ -39,6 +39,17 @@ It is not a sandbox. This page lists exactly what holds and where the limits are
   filtering would not save more than its own footer costs.
 - Filters never drop an error or warning line: tested against real logs from pytest, cargo, go, node, eslint,
   ruff, npm and git (`tests/corpus/`), also with thousands of lines of padding.
+- Six mechanisms, each with a safeguard (measured in [BENCHMARKS](BENCHMARKS.md), $0, no model):
+
+| mechanism | what it saves | the safeguard | limit |
+|---|---|---|---|
+| find code (`find_symbol`, `outline`, `related`, `code find/refs/related`) | reading whole files to locate one function | ranked results never cut silently; `related` lists imports, importers and tests; `refs=true` lists call sites | regex-based, not a type checker: dynamic dispatch and re-exports can be missed |
+| re-reads (`read_file`) | resending a file already in context | unchanged = short notice, changed = diff, `force=true` = full text; a notice is never sent when the file is smaller | relies on the agent still holding the earlier copy; reset on compaction |
+| log compaction (`keelyard run`, `run_compact`) | passing lines and banners | errors, warnings, stack frames, test counts and the exit code are kept (corpus test); the footer says how many lines were collapsed and `keelyard recall <id>` returns the raw output | pattern-based per tool; unknown tools get the generic compressor |
+| paged results (`find_symbol`, `memory_search`) | long result lists | best first, `remaining` and `next_offset` on every page; walking all pages returns everything | memory search counts at most 500 matches |
+| work state (`work_state`, `keelyard state`) | re-deriving decisions after a compaction | every decision needs a ref (`path:line`, `cmd: ...`, `#proof item`), validated when added and re-checked on every render; stale refs are marked STALE | it records what the agent writes down; it does not infer decisions |
+| tools per task (`[mcp].tools = "lazy"`) | tool schemas sent every request | `tool_search` finds every hidden tool, `tool_call` runs it; lazy falls back to `core` if it is not smaller | each on-demand use costs about 309 tokens; past about 4 distinct hidden tools a session is cheaper with `core`, so `core` is the default |
+
 - The lean preset saves tokens partly by **turning tools off** (9 OpenCode built-ins, keelyard's MCP list).
 - Benchmarks used a free model, so there is no cost claim. See [BENCHMARKS](BENCHMARKS.md) for the split
   between cached and uncached input.
@@ -52,6 +63,8 @@ It is not a sandbox. This page lists exactly what holds and where the limits are
 | `proof test` / `proof_run_tests` | test-verified | test-verified | test-verified (MCP off in lean: use the CLI) |
 | snapshot after each edit | yes | yes | yes |
 | shell output filtered in place | yes (`updatedToolOutput`) | sent the same way; not yet confirmed in a real Codex session | yes (plugin rewrites the output) |
+| `[mcp].tools = "lazy"` (tool_search/tool_call) | yes | yes | only with MCP on |
+| work state in the brief after compaction | yes (SessionStart `compact`) | at session start; re-sent after compaction not confirmed | yes (plugin compaction hook) |
 | MCP tools | `.mcp.json` | `~/.codex/config.toml` or `--codex-project-mcp` | off by default (`KEELYARD_OPENCODE_MCP=1`) |
 | checked how | scripted hook payloads in CI (`keelyard selftest`) | scripted hook payloads in CI | real sessions, OpenCode 2.0.22 on Windows 11 |
 

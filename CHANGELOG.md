@@ -2,6 +2,18 @@
 
 ## 0.1.0 (unreleased)
 
+### Token-saving mechanisms, each with a safeguard (Oct 16, 2026)
+- Find code: ranked `find_symbol` (exact names and source first), `refs=true` call sites, `outline(related=true)`
+  and `keelyard code related FILE` (imports, importers, tests); `keelyard code find --refs --offset --limit`
+- Paged results: `find_symbol` and `memory_search` return `total`, `remaining` and `next_offset`; nothing is cut silently
+- Re-reads: an "unchanged" notice is never sent when the file itself is smaller; diff exactness and `force=true` tested
+- Log compaction: the `keelyard run` footer shows the exit code and how many lines were collapsed; `go test -v`
+  failure messages (printed before `--- FAIL`) are now kept; the corpus test checks counts and stack frames
+- Work state: `work_state` MCP tool and `keelyard state` (decisions, open questions, changed files, requirements);
+  every decision needs a validated ref and stale refs are flagged; included in the brief after compaction
+- `[mcp].tools = "lazy"`: 6 schemas up front plus `tool_search`/`tool_call`; falls back to `core` if not smaller
+- `bench/mechanisms.py` measures all six on three fixture repos (see BENCHMARKS); `python -m keelyard` works
+
 ### Trust: proof and rewind (Oct 16, 2026)
 - Proof is bound to a content hash of the worktree: any edit after the last passing test run reopens it,
   even one made without a hook firing

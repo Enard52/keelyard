@@ -60,6 +60,7 @@ def test_cli_find_offset_and_related(proj, monkeypatch, capsys):
     from keelyard.cli import main
 
     monkeypatch.chdir(proj)
+    monkeypatch.setenv("KEELYARD_ROOT", str(proj))
 
     def run(*a):
         capsys.readouterr()
