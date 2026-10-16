@@ -1,0 +1,42 @@
+TAP version 13
+# Warning: punycode is deprecated
+# Subtest: ok
+ok 1 - ok
+  ---
+  duration_ms: 1.179319
+  ...
+# Subtest: total
+not ok 2 - total
+  ---
+  duration_ms: 1.362575
+  location: '/home/dev/proj/n/a.test.js:3:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    discount not applied
+    
+    90 !== 81
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 81
+  actual: 90
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/dev/proj/n/a.test.js:3:26)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 129.195556

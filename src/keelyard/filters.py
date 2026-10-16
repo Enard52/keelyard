@@ -127,8 +127,12 @@ def pytest(out: str) -> str:
             keep.append(ln)
             continue
         if re.match(r"^=+ (short test summary info|warnings summary)", ln):
-            in_fail = False
+            in_fail = "warnings summary" in ln and "warn"
             keep.append(ln)
+            continue
+        if in_fail == "warn":  # the warning text and where it came from; the docs link is the only noise
+            if ln.strip() and not ln.startswith("-- Docs:"):
+                keep.append(_clip(ln, 300))
             continue
         if PY_SUMMARY.search(ln) or ln.startswith(("FAILED ", "ERROR ")):
             keep.append(_clip(ln, 300))
@@ -144,7 +148,7 @@ LIB_FRAME = re.compile(r"(site-packages|dist-packages|[\\/]lib[\\/]python3?[\d.]
 BANNER = re.compile(r"^([=_])\1{2,} (.*?) \1{3,}$")
 
 
-BLOCK_START = re.compile(r"^---- .* stdout ----|^\s*● |^\s*--- FAIL|^\s*(FAIL|✕|×|✗)\s|^\s*\d+\) |panicked at")
+BLOCK_START = re.compile(r"^warning(\[\w+\])?: (?!`[^`]+` \(\w+( test)?\) generated)|^---- .* stdout ----|^\s*● |^\s*--- FAIL|^\s*(FAIL|✕|×|✗)\s|^\s*\d+\) |panicked at")
 SUMMARY = re.compile(r"(?i)^test result:|^(FAIL|ok)\s+\S+\s+[\d.]+s|^tests?:\s|^test suites?:|^\s*(passed|failed|skipped)\b|"
                      r"^error(\[|:)|^\s*failures:$|^\s{4}\S+::\S+$|\b\d+ (passing|failing|passed|failed)\b")
 NOISE = re.compile(r"^note: run with `RUST_BACKTRACE|^\s+at (node:|.*node_modules)")

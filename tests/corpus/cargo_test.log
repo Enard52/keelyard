@@ -1,0 +1,35 @@
+   Compiling cr v0.1.0 (/home/dev/proj/cr)
+warning: unused variable: `unused`
+ --> src/lib.rs:1:35
+  |
+1 | pub fn add(a:i32,b:i32)->i32{ let unused = 5; a-b }
+  |                                   ^^^^^^ help: if this is intentional, prefix it with an underscore: `_unused`
+  |
+  = note: `#[warn(unused_variables)]` on by default
+
+warning: `cr` (lib) generated 1 warning
+warning: `cr` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.74s
+     Running unittests src/lib.rs (target/debug/deps/cr-d557b37106143384)
+
+running 2 tests
+test t::ok ... ok
+test t::adds ... FAILED
+
+failures:
+
+---- t::adds stdout ----
+
+thread 't::adds' panicked at src/lib.rs:3:76:
+assertion `left == right` failed
+  left: 0
+ right: 4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    t::adds
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

@@ -1,0 +1,5 @@
+
+> x@1.0.0 test
+> node -e "console.error(\"Error: Cannot find module ./db\");process.exit(1)"
+
+Error: Cannot find module ./db

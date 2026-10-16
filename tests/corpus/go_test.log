@@ -1,0 +1,8 @@
+=== RUN   TestAdd
+    a_test.go:3: Add(2,2) = 0, want 4
+--- FAIL: TestAdd (0.00s)
+=== RUN   TestOk
+--- PASS: TestOk (0.00s)
+FAIL
+FAIL	ex	0.002s
+FAIL
