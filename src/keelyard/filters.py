@@ -152,6 +152,8 @@ BLOCK_START = re.compile(r"^warning(\[\w+\])?: (?!`[^`]+` \(\w+( test)?\) genera
                          r"^---- .* stdout ----|^\s*● |^\s*--- FAIL|^\s*(FAIL|✕|×|✗)\s|^\s*\d+\) |panicked at")
 SUMMARY = re.compile(r"(?i)^test result:|^(FAIL|ok)\s+\S+\s+[\d.]+s|^tests?:\s|^test suites?:|^\s*(passed|failed|skipped)\b|"
                      r"^error(\[|:)|^\s*failures:$|^\s{4}\S+::\S+$|\b\d+ (passing|failing|passed|failed)\b")
+GO_RUN = re.compile(r"^\s*=== (RUN|PAUSE|CONT|NAME)\s")
+GO_PASS = re.compile(r"^\s*--- (PASS|SKIP):")
 NOISE = re.compile(r"^note: run with `RUST_BACKTRACE|^\s+at (node:|.*node_modules)")
 
 
@@ -159,11 +161,23 @@ def generic_tests(out: str, block_cap: int = 40) -> str:
     """cargo test, go test, jest, vitest, mocha, npm test: whole failure blocks + summaries, passes dropped."""
     keep: list[str] = []
     in_block, blank, n = False, 0, 0
+    pending: list[str] = []  # go test -v prints a test's messages *before* its "--- FAIL" line
     for ln in _clean(out):
+        if GO_RUN.match(ln):
+            pending, in_block = [], False
+            continue
+        if GO_PASS.match(ln):
+            pending, in_block = [], False
+            continue
         if BLOCK_START.search(ln):
+            if ln.lstrip().startswith("--- FAIL"):
+                keep.extend(_clip(p, 240) for p in pending[-block_cap:])
+            pending = []
             in_block, blank, n = True, 0, 0
             keep.append(_clip(ln, 240))
             continue
+        if not in_block and ln.startswith(("    ", "\t")) and ln.strip():
+            pending.append(ln)
         if in_block:
             if not ln.strip():
                 blank += 1
@@ -289,7 +303,9 @@ def run_filtered(cmd: str, cwd: Path, raw_dir: Path, timeout: int = 900) -> tupl
         return 127, str(e)
     small = filter_output(cmd, raw)
     h = hashlib.sha256(raw.encode()).hexdigest()[:12]
-    footer = (f"\n[keelyard: {approx_tokens(raw)}→{approx_tokens(small)} tokens in {time.time() - t0:.1f}s; "
+    omitted = len(raw.splitlines()) - len(small.splitlines())
+    footer = (f"\n[keelyard: exit {code}; {approx_tokens(raw)}→{approx_tokens(small)} tokens"
+              f"{f', {omitted} passing/noise lines collapsed' if omitted > 0 else ''} in {time.time() - t0:.1f}s; "
               f"full output: keelyard recall {h}]")
     if len(small) + len(footer) >= len(raw.rstrip()):
         return code, raw.rstrip("\n")  # filtering would not save anything once the footer is counted: never add tokens
