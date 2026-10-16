@@ -72,3 +72,26 @@ def test_uninstall_restores_crlf_and_trailing_newlines_exactly(project):
         uninstall(a, project)
     assert (project / "CLAUDE.md").read_bytes() == b"# mine\r\nline two\r\n\r\n"
     assert (project / "AGENTS.md").read_bytes() == b"# agents\n\n\n"
+
+
+def test_terse_rule_in_every_preset_and_opt_out(project, monkeypatch):
+    from keelyard.adapters.install import _guide, uninstall
+
+    rule = _guide("terse.md").strip()
+    for preset in ("lean", "balanced", "max-quality"):
+        for agent, f in (("claude", "CLAUDE.md"), ("codex", "AGENTS.md")):
+            install(agent, project, preset=preset)
+            assert rule in (project / f).read_text(), (preset, agent)
+            uninstall(agent, project)
+    install("claude", project, terse=False)
+    assert rule not in (project / "CLAUDE.md").read_text()
+    uninstall("claude", project)
+    monkeypatch.setenv("KEELYARD_TERSE", "0")
+    install("codex", project)
+    assert rule not in (project / "AGENTS.md").read_text()
+
+
+def test_terse_rule_is_short():
+    from keelyard.adapters.install import _guide
+
+    assert len(_guide("terse.md")) // 4 <= 40  # measured to save more output tokens than it costs (bench/terse.py)

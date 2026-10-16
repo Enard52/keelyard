@@ -144,6 +144,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--codex-project-mcp", action="store_true",
                    help="Codex: register the keelyard MCP server in this project's .codex/config.toml instead of asking you to edit "
                         "~/.codex/config.toml (Codex reads it only for trusted projects)")
+    p.add_argument("--no-terse", dest="terse", action="store_false",
+                   help="leave out the terse-output rule (results only, no filler) from CLAUDE.md/AGENTS.md")
     p.add_argument("--global", dest="glob", action="store_true",
                    help="wire the agents for every project of this user (~/.claude, ~/.codex, ~/.config/opencode); "
                         "projects set themselves up on their first session")
@@ -160,6 +162,7 @@ def _parser() -> argparse.ArgumentParser:
         p.add_argument("agent", nargs="?", choices=["claude", "codex", "opencode"])
         p.add_argument("--global", dest="glob", action="store_true", help=f"{verb} at user level (all agents if none named)")
         if name == "install":
+            p.add_argument("--no-terse", dest="terse", action="store_false", help="leave out the terse-output rule")
             p.add_argument("--codex-project-mcp", action="store_true",
                            help="Codex: register the keelyard MCP server in this project's .codex/config.toml instead of asking you to edit "
                         "~/.codex/config.toml (Codex reads it only for trusted projects)")
@@ -294,7 +297,7 @@ def _do_global(a, remove: bool):
         ui.heading("keelyard uninstall --global" if remove else "keelyard init --global", "all projects of this user")
     for x in agents:
         try:
-            files = uninstall_global(x) if remove else install_global(x)
+            files = uninstall_global(x) if remove else install_global(x, terse=None if getattr(a, "terse", True) else False)
         except InstallError as e:
             raise Fail(str(e)) from None
         data["changed"][x] = files
@@ -342,7 +345,8 @@ def do_init(a):
         ui.line("ok", "config", str(cfg_path.relative_to(root)))
     for x in agents:
         was = installed(x, root)
-        items = install(x, root, preset=getattr(a, "preset", "balanced"), codex_project_mcp=getattr(a, "codex_project_mcp", False))
+        items = install(x, root, preset=getattr(a, "preset", "balanced"), codex_project_mcp=getattr(a, "codex_project_mcp", False),
+                        terse=None if getattr(a, "terse", True) else False)
         data["changed"] += [f"{x}: {i.splitlines()[0]}" for i in items]
         if h:
             short = []
@@ -993,7 +997,8 @@ def do_install(a):
     if a.cmd == "install":
         config.init(root)
     if a.cmd == "install":
-        done = inst.install(a.agent, root, codex_project_mcp=getattr(a, "codex_project_mcp", False))
+        done = inst.install(a.agent, root, codex_project_mcp=getattr(a, "codex_project_mcp", False),
+                            terse=None if getattr(a, "terse", True) else False)
     else:
         done = inst.uninstall(a.agent, root)
     if _human(a):

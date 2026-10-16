@@ -1,0 +1,58 @@
+{
+ "model": "qwen-coder-1.5b",
+ "rule_tokens": 33,
+ "old_rule_tokens": 22,
+ "variants": {
+  "none": {
+   "output_tokens": 2097,
+   "correct": 10,
+   "cases": 10,
+   "per_case": [
+    187,
+    183,
+    243,
+    408,
+    228,
+    155,
+    237,
+    291,
+    70,
+    95
+   ]
+  },
+  "old 'Be terse'": {
+   "output_tokens": 735,
+   "correct": 8,
+   "cases": 10,
+   "per_case": [
+    57,
+    3,
+    3,
+    253,
+    20,
+    114,
+    161,
+    38,
+    20,
+    66
+   ]
+  },
+  "terse rule": {
+   "output_tokens": 1234,
+   "correct": 9,
+   "cases": 10,
+   "per_case": [
+    109,
+    3,
+    3,
+    486,
+    62,
+    148,
+    178,
+    170,
+    20,
+    55
+   ]
+  }
+ }
+}

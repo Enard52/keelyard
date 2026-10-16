@@ -179,6 +179,7 @@ def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
     pf = _preset_file(root)
     rec = json.loads(pf.read_text(encoding="utf-8")) if pf.exists() else {}
     rec["preset"] = preset
+    rec["terse"] = _TERSE
     added = rec.setdefault("added", {})
     done = []
     cfg_path = root / ".keelyard" / "config.toml"
@@ -261,6 +262,21 @@ def _guide(name: str) -> str:
     return resources.files("keelyard.adapters").joinpath("guides", name).read_text(encoding="utf-8")
 
 
+_TERSE = True  # the terse-output rule of the install in progress (opt out: --no-terse or KEELYARD_TERSE=0)
+
+
+def terse_default() -> bool:
+    return os.environ.get("KEELYARD_TERSE", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _rules(name: str, terse: bool | None = None) -> str:
+    """The agent instructions block, with the terse-output rule unless the user opted out."""
+    body = _guide(name)
+    if _TERSE if terse is None else terse:
+        body = body.rstrip("\n") + "\n" + _guide("terse.md")
+    return body
+
+
 def _set_block(path: Path, body: str | None) -> bool:
     """Insert, replace or (body=None) remove the keelyard block; the rest of the file is untouched."""
     text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -285,7 +301,7 @@ def install_guides(agent: str, root: Path) -> list[str]:
     done = []
     lean = (_PRESET == "lean" or (agent == "opencode" and not opencode_mcp())) and _PRESET != "max-quality" \
         and not (agent == "opencode" and installed("codex", root) and _PRESET != "lean")
-    _set_block(root / GUIDE_FILE[agent], _guide("agents_block_lean.md" if lean else "agents_block.md"))
+    _set_block(root / GUIDE_FILE[agent], _rules("agents_block_lean.md" if lean else "agents_block.md"))
     done.append(f"{GUIDE_FILE[agent]} (keelyard section)")
     if agent == "claude":
         skill = root / ".claude" / "skills" / "keelyard" / "SKILL.md"
@@ -329,18 +345,20 @@ def uninstall_guides(agent: str, root: Path) -> list[str]:
     return done
 
 
-def install(agent: str, root: Path, preset: str = "balanced", codex_project_mcp: bool = False) -> list[str]:
-    global _PRESET
+def install(agent: str, root: Path, preset: str = "balanced", codex_project_mcp: bool = False,
+            terse: bool | None = None) -> list[str]:
+    global _PRESET, _TERSE
     if agent not in AGENTS:
         raise InstallError(f"unknown agent {agent!r}. Hint: choose one of {', '.join(AGENTS)}.")
     if preset not in PRESETS:
         raise InstallError(f"unknown preset {preset!r}. Hint: choose one of {', '.join(PRESETS)}.")
     _PRESET = preset
+    _TERSE = terse_default() if terse is None else terse
     _remember_originals(agent, root)
     try:
         return _install(agent, root, codex_project_mcp) + _apply_preset(agent, root, preset)
     finally:
-        _PRESET = "balanced"
+        _PRESET, _TERSE = "balanced", True
 
 
 def codex_mcp_block() -> str:
@@ -535,14 +553,15 @@ def _drop_key(path: Path, key: str) -> bool:
     return True
 
 
-def install_global(agent: str, home: Path | None = None) -> list[str]:
+def install_global(agent: str, home: Path | None = None, terse: bool | None = None) -> list[str]:
     """Wire one agent for every project of this user. Existing files are backed up once and merged, never replaced."""
     if agent not in AGENTS:
         raise InstallError(f"unknown agent {agent!r}. Hint: choose one of {', '.join(AGENTS)}.")
     p = global_paths(home)
     for k in ("claude_settings", "claude_json", "codex_hooks", "opencode_json"):
         _read_json(p[k])  # validate first: a broken file must never leave a half install
-    rules = _guide("agents_block.md")
+    terse = terse_default() if terse is None else terse
+    rules = _rules("agents_block.md", terse)
     done = []
     if agent == "claude":
         for k in ("claude_settings", "claude_json", "claude_md"):
@@ -574,7 +593,7 @@ def install_global(agent: str, home: Path | None = None) -> list[str]:
         p["opencode_plugin"].write_text(_plugin_js(), encoding="utf-8")
         if opencode_mcp():
             _merge_json(p["opencode_json"], "mcp", "keelyard", {"type": "local", "command": [_exe_path(), "mcp"], "enabled": True})
-        _set_block(p["opencode_md"], rules if opencode_mcp() else _guide("agents_block_lean.md"))
+        _set_block(p["opencode_md"], rules if opencode_mcp() else _rules("agents_block_lean.md", terse))
         cmds = p["opencode_dir"] / "command"
         cmds.mkdir(parents=True, exist_ok=True)
         for name in WORKFLOWS:

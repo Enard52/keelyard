@@ -6,4 +6,3 @@ This project uses keelyard (proof, rewind, smaller context). Rules:
 - Noisy commands: run_compact; recall(id) for the full output.
 - Mistake? rewind_list, rewind_to. Every edit is a step.
 - Workflows on demand: workflow("plan" | "debug" | "review").
-- Be terse: no preamble, no restating the question, no summary of what you are about to do.

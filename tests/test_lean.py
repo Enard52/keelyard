@@ -55,7 +55,7 @@ def test_opencode_install_has_no_mcp_by_default(project):
     js = (project / ".opencode" / "plugins" / "keelyard.js").read_text()
     assert "const MCP = false;" in js
     agents = (project / "AGENTS.md").read_text()
-    assert "proof_requirements" not in agents and len(agents) < 400
+    assert "proof_requirements" not in agents and len(agents) < 420  # includes the terse-output rule
 
 
 def test_opencode_mcp_opt_in(project, monkeypatch):
