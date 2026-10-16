@@ -87,3 +87,29 @@ def test_claude_bash_posttooluse_replaces_output(cfg, project):
     assert (cfg.state / "raw" / rid).read_text().startswith("tests/test_a.py::test_0")
     small = dict(ev, tool_response={"stdout": "ok", "stderr": "", "interrupted": False, "isImage": False})
     assert hooks.handle("PostToolUse", small, cfg) is None
+
+
+def test_pytest_drops_library_frames_and_shrinks_banners():
+    from keelyard.filters import pytest as f
+    out = ("==================================== ERRORS ====================================\n"
+           "__________________________ ERROR collecting test_m.py __________________________\n"
+           "/x/.venv/lib/python3.13/site-packages/_pytest/python.py:508: in importtestmodule\n"
+           "/usr/lib/python3.13/importlib/__init__.py:88: in import_module\n"
+           "test_m.py:1: in <module>\n"
+           "E   SyntaxError: expected ':'\n"
+           "=========================== short test summary info ============================\n"
+           "ERROR test_m.py\n")
+    got = f(out)
+    assert "site-packages" not in got and "importlib" not in got
+    assert "test_m.py:1: in <module>" in got and "SyntaxError" in got
+    assert "== ERRORS ==" in got and "__ ERROR collecting test_m.py __" in got
+    assert len(got) < len(out) / 2
+
+
+def test_run_never_makes_small_output_bigger(tmp_path):
+    import sys
+
+    from keelyard.filters import run_filtered
+    code, out = run_filtered(f'{sys.executable} -c "print(42)"', tmp_path, tmp_path / "raw")
+    assert code == 0 and out == "42"
+    assert not (tmp_path / "raw").exists()

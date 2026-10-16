@@ -132,11 +132,16 @@ def pytest(out: str) -> str:
             continue
         if PY_SUMMARY.search(ln) or ln.startswith(("FAILED ", "ERROR ")):
             keep.append(_clip(ln, 300))
-        elif in_fail and FAIL_LINE.search(ln):
+        elif in_fail and FAIL_LINE.search(ln) and not LIB_FRAME.search(ln):
             keep.append(_clip(ln, 300))
     if not keep:
         return compress_output(out)
+    keep = [BANNER.sub(r"\1\1 \2 \1\1", ln) for ln in keep]  # "==== X ====" -> "== X ==": same meaning, fewer tokens
     return "\n".join(dict.fromkeys(keep))  # dedupe, keep order
+
+
+LIB_FRAME = re.compile(r"(site-packages|dist-packages|[\\/]lib[\\/]python3?[\d.]*[\\/]|<frozen )")
+BANNER = re.compile(r"^([=_])\1{2,} (.*?) \1{3,}$")
 
 
 BLOCK_START = re.compile(r"^---- .* stdout ----|^\s*● |^\s*--- FAIL|^\s*(FAIL|✕|×|✗)\s|^\s*\d+\) |panicked at")
@@ -278,10 +283,11 @@ def run_filtered(cmd: str, cwd: Path, raw_dir: Path, timeout: int = 900) -> tupl
     except FileNotFoundError as e:
         return 127, str(e)
     small = filter_output(cmd, raw)
-    if small != raw:
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        h = hashlib.sha256(raw.encode()).hexdigest()[:12]
-        (raw_dir / h).write_text(raw)
-        small += (f"\n[keelyard: {approx_tokens(raw)}→{approx_tokens(small)} tokens in {time.time() - t0:.1f}s; "
-                  f"full output: keelyard recall {h}]")
-    return code, small
+    h = hashlib.sha256(raw.encode()).hexdigest()[:12]
+    footer = (f"\n[keelyard: {approx_tokens(raw)}→{approx_tokens(small)} tokens in {time.time() - t0:.1f}s; "
+              f"full output: keelyard recall {h}]")
+    if len(small) + len(footer) >= len(raw.rstrip()):
+        return code, raw.rstrip("\n")  # filtering would not save anything once the footer is counted: never add tokens
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    (raw_dir / h).write_text(raw, encoding="utf-8")
+    return code, small + footer

@@ -46,7 +46,7 @@ def summary_line(output: str) -> str:
 def detect_test_cmd(root: Path) -> str:
     if (root / "package.json").exists():
         try:
-            pkg = json.loads((root / "package.json").read_text())
+            pkg = json.loads((root / "package.json").read_text(encoding="utf-8"))
             if "test" in pkg.get("scripts", {}):
                 return "npm test --silent"
         except json.JSONDecodeError:
@@ -88,7 +88,7 @@ class Proof:
     def load(self) -> Bundle:
         if self.path.exists():
             try:
-                d = json.loads(self.path.read_text())
+                d = json.loads(self.path.read_text(encoding="utf-8"))
                 known = Bundle.__dataclass_fields__
                 return Bundle(**{k: v for k, v in d.items() if k in known})
             except (ValueError, TypeError):
@@ -97,7 +97,7 @@ class Proof:
 
     def save(self, b: Bundle) -> None:
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(b.__dict__, indent=2))
+        tmp.write_text(json.dumps(b.__dict__, indent=2), encoding="utf-8")
         tmp.replace(self.path)
 
     # -- evidence -----------------------------------------------------------
@@ -223,12 +223,12 @@ class Proof:
         gaps = []
         after = [t for t in b.test_runs if t["phase"] == "after" and t["ts"] >= last_edit]
         auto_ok = self.opts.get("auto_requirements", True) and after and after[-1]["exit"] == 0
-        if not b.requirements and not auto_ok:
+        failing = bool(after) and after[-1]["exit"] != 0
+        if not b.requirements and not auto_ok and not failing:  # a red test is the one thing to fix first
             gaps.append("No requirement checklist yet (proof_requirements, or `keelyard proof add`).")
         for r in b.requirements:
             if not r["done"]:
                 gaps.append(f"Requirement #{r['id']} not verified: {r['text']}")
-        after = [t for t in b.test_runs if t["phase"] == "after" and t["ts"] >= last_edit]
         if not after:
             gaps.append("No test run after the last edit (proof_run_tests phase='after', or `keelyard proof test after`).")
         elif after[-1]["exit"] != 0:

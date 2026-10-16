@@ -72,3 +72,14 @@ def test_hook_cli_claude_format_end_to_end(project):
     p = subprocess.run([sys.executable, "-m", "keelyard.cli", "hook", "claude", "Stop"], input="not json",
                        capture_output=True, text=True, cwd=project)
     assert p.returncode == 0
+
+
+def test_red_test_is_the_only_gap_shown(cfg, project):
+    """A failing run already says what to do; asking for a checklist too just costs tokens."""
+    hooks.handle("SessionStart", claude("SessionStart"), cfg)
+    (project / "app.py").write_text("def add(a, b):\n    return 0\n")
+    hooks.handle("PostToolUse", claude("PostToolUse", tool_name="Bash", tool_input={"command": "sed ..."}), cfg)
+    pf = Proof(cfg, "s1")
+    assert pf.run_tests("after", f"{sys.executable} -m pytest -q")["exit"] != 0
+    gaps = pf.missing()
+    assert len(gaps) == 1 and "failed" in gaps[0]
