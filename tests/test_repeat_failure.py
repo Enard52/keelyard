@@ -44,3 +44,9 @@ def test_shell_hook_surfaces_the_hint(cfg, project):
     res = hooks.handle("PostToolUse", ev, cfg) or {}
     assert "same failure" in str(res)
     assert len(pf.load().test_runs) == 2
+
+
+def test_signature_ignores_memory_addresses_any_case():
+    a = "E   where 5 = <function add at 0x7f3a2b1c>(2, 2)"
+    b = "E   where 7 = <function add at 0x000001F2D3C4A0>(2, 2)"
+    assert failure_signature(a) == failure_signature(b)

@@ -42,7 +42,7 @@ def failure_signature(text: str) -> str:
     keep = set()
     for ln in (text or "").splitlines():
         if _SIG_LINE.search(ln):
-            keep.add(re.sub(r"0x[0-9a-f]+|\d+(\.\d+)?", "N", ln.strip())[:200])
+            keep.add(re.sub(r"0x[0-9a-fA-F]+|\d+(\.\d+)?", "N", ln.strip())[:200])
     return "\n".join(sorted(keep))
 
 
