@@ -16,6 +16,7 @@ import traceback
 from pathlib import Path
 
 from . import config, session
+from .locking import file_lock
 from .proof import Proof
 from .report import render
 from .saver import ReadCache
@@ -272,18 +273,22 @@ def handle(event: str, payload: dict, cfg: config.Config) -> dict | None:
             pf.auto_complete()
         report = render(pf)
         opts = cfg.section("proof")
-        b = pf.load()
-        if pf.last_edit_ts() is not None or b.requirements:
-            b.gate.append({"ts": time.time(), "blocked": bool(gaps and opts["gate"] and b.blocks < int(opts["max_blocks"])),
-                           "open": len(gaps)})
-            b.gate = b.gate[-50:]
-            pf.save(b)
+        edited = pf.last_edit_ts() is not None
+
+        def decide(b):
+            blocked = bool(gaps and opts["gate"] and b.blocks < int(opts["max_blocks"]))
+            if edited or b.requirements:
+                b.gate.append({"ts": time.time(), "blocked": blocked, "open": len(gaps)})
+                b.gate = b.gate[-50:]
+            if blocked:
+                b.blocks += 1
+            return blocked, b.blocks
+
+        blocked, blocks = pf._update(decide)
         if not gaps or not opts["gate"]:
             return None
-        if b.blocks >= int(opts["max_blocks"]):
-            return {"systemMessage": f"keelyard: proof incomplete after {b.blocks} reminders; see {report}"}
-        b.blocks += 1
-        pf.save(b)
+        if not blocked:
+            return {"systemMessage": f"keelyard: proof incomplete after {blocks} reminders; see {report}"}
         reason = ("keelyard proof gate: you changed files but have not proven the work yet.\n- "
                   + "\n- ".join(gaps)
                   + "\nRun the project's tests in your shell (that counts as proof), or use the keelyard proof tools / "
@@ -307,6 +312,21 @@ def _auto_setup(cfg: config.Config) -> bool:
     return True
 
 
+def _seen(cfg: config.Config, agent: str, event: str) -> None:
+    """Heartbeat: proves the agent really calls keelyard (status and doctor say so when it never has)."""
+    p = cfg.state / "hooks_seen.json"
+    try:
+        with file_lock(cfg.state / "hooks_seen.lock", timeout=2):
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                d = {}
+            d.setdefault(agent, {})[event] = time.time()
+            p.write_text(json.dumps(d), encoding="utf-8")
+    except (OSError, TimeoutError):
+        pass
+
+
 def main(agent: str, event: str) -> int:
     raw = sys.stdin.read()
     try:
@@ -322,6 +342,7 @@ def main(agent: str, event: str) -> int:
             cfg = config.load(cfg.root)
     except Exception:  # noqa: BLE001 - not a project, or a broken config: stay out of the agent's way
         return 0
+    _seen(cfg, agent, event)
     try:
         out = handle(event, payload, cfg)
     except Exception:  # noqa: BLE001

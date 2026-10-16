@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
 import subprocess
 import tarfile
 import time
@@ -42,6 +43,12 @@ class Step:
 EXCLUDE = (".keelyard/\n.git/\nnode_modules/\n.venv/\n__pycache__/\n"
            ".claude/skills/keelyard/\n.claude/commands/keelyard/\n.opencode/plugin/keelyard.js\n.opencode/plugins/keelyard.js\n"
            ".opencode/command/keelyard-*.md\n")
+
+
+# Secrets never enter a snapshot (and so never a diff, report or rewind). Example files stay in.
+SECRETS = (".env\n.env.*\n!.env.example\n!.env.sample\n!.env.template\n*.pem\n*.key\n*.p12\n*.pfx\n*.jks\n*.keystore\n"
+           "id_rsa*\nid_dsa*\nid_ecdsa*\nid_ed25519*\n.npmrc\n.pypirc\n.netrc\n.git-credentials\n.dockercfg\n"
+           "credentials.json\nservice-account*.json\n*.tfstate\n*.tfstate.*\nsecrets/\n.secrets/\n")
 
 
 WIRING = (".claude/", ".codex/", ".opencode/", "AGENTS.md", "CLAUDE.md", "opencode.json", ".mcp.json")
@@ -85,13 +92,20 @@ class Shadow:
     def _names(self, *args: str) -> list[str]:
         return [f for f in self._git(*args, "-z").decode("utf-8", "surrogateescape").split("\0") if f]
 
+    def excludes(self) -> str:
+        """EXCLUDE + secrets (unless [rewind].include_secrets) + your own [rewind].exclude patterns."""
+        opts = self.cfg.section("rewind")
+        extra = "".join(f"{p}\n" for p in opts.get("exclude", []) or [])
+        return EXCLUDE + ("" if opts.get("include_secrets", False) else SECRETS) + extra
+
     def _ensure(self) -> None:
         self.cfg.require_project()
         if (self.gitdir / "HEAD").exists():
             excl = self.gitdir / "info" / "exclude"
             try:
-                if excl.read_text(encoding="utf-8") != EXCLUDE:  # older timelines: pick up new exclusions
-                    excl.write_text(EXCLUDE, encoding="utf-8")
+                want = self.excludes()
+                if excl.read_text(encoding="utf-8") != want:  # older timelines or a config change: new exclusions
+                    excl.write_text(want, encoding="utf-8")
             except OSError:
                 pass
             return
@@ -107,7 +121,7 @@ class Shadow:
         self._git("config", "gc.auto", "0")
         excl = self.gitdir / "info" / "exclude"
         excl.parent.mkdir(exist_ok=True)
-        excl.write_text(EXCLUDE, encoding="utf-8")
+        excl.write_text(self.excludes(), encoding="utf-8")
 
     def steps(self) -> list[Step]:
         if not self.log.exists():
@@ -144,6 +158,10 @@ class Shadow:
         costs one `git add` plus a handful of stat calls per agent edit."""
         limit = float(self.cfg.section("rewind").get("max_file_mb", 20)) * 1024 * 1024
         self._git("add", "-A", "--ignore-errors", ".", check=False)
+        # a file that became excluded (a secret, a new pattern) must leave the index, not linger from an older step
+        stale = self._names("ls-files", "--cached", "--ignored", "--exclude-standard")
+        if stale:
+            self._git("rm", "--cached", "-q", "--ignore-unmatch", "--", *stale, check=False)
         nested = []
         skipped = []
         changed = (self._names("diff", "--cached", "--name-only", "--no-renames", parent) if parent
@@ -221,6 +239,25 @@ class Shadow:
             f.write(step.to_json() + "\n")
         return step
 
+    def tree_hash(self) -> str:
+        """Content hash of the worktree as keelyard sees it (gitignore and secret excludes applied).
+        Two equal hashes mean no tracked byte changed in between."""
+        self._ensure()
+        with file_lock(self.lock):
+            prev = self.steps()
+            self._stage(prev[-1].sha if prev else None)
+            return self._git("write-tree").decode().strip()
+
+    def test_files_at(self, rev: str) -> dict[str, str]:
+        """Test files and test config at a commit or tree, as {path: text}."""
+        from .trust import is_tracked_name
+
+        out = {}
+        for rel in self._names("ls-tree", "-r", "--name-only", rev):
+            if is_tracked_name(rel):
+                out[rel] = self._git("cat-file", "blob", f"{rev}:{rel}", check=False).decode("utf-8", "replace")
+        return out
+
     def diff(self, n: int) -> str:
         s = self.get(n)
         parent = self._git("rev-list", "--parents", "-n1", s.sha).decode().split()[1:]
@@ -235,11 +272,41 @@ class Shadow:
         with file_lock(self.lock):
             return self._rewind(n, target)
 
-    def _rewind(self, n: int, target: Step) -> dict:
+    @property
+    def journal(self) -> Path:
+        return self.root / ".keelyard" / "rewind.journal"
+
+    def interrupted(self) -> dict | None:
+        """A rewind that started and never finished (crash, Ctrl-C, power loss) leaves its journal behind."""
+        try:
+            return json.loads(self.journal.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def _rewind(self, n: int, target: Step, recovering: bool = False) -> dict:
+        if not recovering and self.interrupted():
+            raise SnapshotError("an earlier rewind did not finish. Hint: run `keelyard rewind recover` first.")
         safety = self._snapshot("pre-rewind", "", f"before rewind to {n}")
         cur_step = safety or self.steps()[-1]
         current = cur_step.sha
         added = self._names("diff", "--name-only", "--diff-filter=A", target.sha, current)
+        # files the snapshot could not hold (ignored, secret, too big) but the restore would overwrite or delete:
+        # copy them aside first, so a rewind never destroys work that exists nowhere else
+        in_safety = set(self._names("ls-tree", "-r", "--name-only", current))
+        touched = set(self._names("ls-tree", "-r", "--name-only", target.sha)) | set(added)
+        backup = self.root / ".keelyard" / "backup" / time.strftime("%Y%m%d-%H%M%S")
+        saved = []
+        for rel in sorted(touched - in_safety):
+            p = self.root / rel
+            if p.is_file() and not p.is_symlink():
+                dest = backup / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, dest)
+                saved.append(rel)
+        tmp = self.journal.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"target": n, "safety_step": cur_step.step, "safety_sha": current, "ts": time.time(),
+                                   "backup": str(backup) if saved else ""}), encoding="utf-8")
+        os.replace(tmp, self.journal)
         for rel in added:
             p = self.root / rel
             if p.is_file() or p.is_symlink():
@@ -247,12 +314,26 @@ class Shadow:
         self._git("read-tree", target.sha)
         self._git("checkout-index", "-a", "-f")
         after = self._snapshot("rewind", "", f"restored step {n}")
+        self.journal.unlink(missing_ok=True)
         return {
             "restored": n,
             "removed": added,
             "safety_step": cur_step.step,
             "new_step": after.step if after else None,
+            "backed_up": saved,
+            "backup_dir": str(backup) if saved else "",
         }
+
+    def recover(self) -> dict:
+        """Finish an interrupted rewind by putting back the state saved just before it started."""
+        j = self.interrupted()
+        if not j:
+            raise SnapshotError("no interrupted rewind to recover.")
+        self._ensure()
+        with file_lock(self.lock):
+            res = self._rewind(j["safety_step"], self.get(j["safety_step"]), recovering=True)
+        res["recovered_from"] = j
+        return res
 
     def fork(self, n: int, dest: Path) -> Path:
         """Materialise step n into a separate directory to try another approach."""

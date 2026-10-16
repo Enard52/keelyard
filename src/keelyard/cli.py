@@ -176,6 +176,7 @@ def _parser() -> argparse.ArgumentParser:
     x.add_argument("step", type=int)
     x.add_argument("dest", type=Path)
     r.add_parser("snap", help="take a snapshot now")
+    r.add_parser("recover", help="finish a rewind that was interrupted (puts back the state from just before it)")
 
     r = group(cmd("proof", "the evidence an agent collected before saying done"), "action", "")
     r.s.required = False  # bare `keelyard proof` shows the status
@@ -190,6 +191,9 @@ def _parser() -> argparse.ArgumentParser:
     x.add_argument("--cmd", dest="test_cmd", help="override [proof].test_cmd")
     x = r.add_parser("shot", help="screenshot the app")
     x.add_argument("url", nargs="?")
+    x = r.add_parser("accept-tests", help="acknowledge changed tests (a real refactor); shown as agent-claimed")
+    x.add_argument("reason")
+    r.add_parser("reset", help="start this session's proof over (e.g. after a failed signature check)")
     x = r.add_parser("report", help="write the HTML report")
     x.add_argument("--open", action="store_true", help="open it in the browser")
 
@@ -480,7 +484,7 @@ def _ago(ts: float) -> str:
 def do_status(a):
     from . import ui
     from .adapters.install import AGENTS, installed
-    from .proof import Proof
+    from .proof import Proof, gate_status
     from .snapshot import Shadow
 
     cfg = _cfg()
@@ -494,7 +498,9 @@ def do_status(a):
     gaps = pf.missing()
     data = {"version": __version__, "root": str(root), "agents": {x: installed(x, root) for x in AGENTS}, "steps": len(steps),
             "last_step": steps[-1].__dict__ if steps else None, "session": sid, "task": b.task,
-            "requirements": b.requirements, "state": pf.state(), "proven": pf.state() == "proven", "missing": gaps}
+            "requirements": b.requirements, "state": pf.state(), "proven": pf.state() == "proven", "missing": gaps,
+            "gate": gate_status(cfg), "evidence": pf.levels()}
+    data["guarded"] = data["gate"]["state"] == "hooked"
     if _human(a):
         ui.heading("keelyard status", ui.tilde(root))
         ui.out.print("\n  [muted]agents[/]    " + "   ".join(
@@ -508,10 +514,17 @@ def do_status(a):
             ui.out.print("  [muted]timeline[/]  no snapshots yet")
         blocked = sum(bool(g.get("blocked")) for g in b.gate)
         times = "once" if blocked == 1 else f"{blocked} times"
+        proven_txt = "[ok]proven[/]" if data["guarded"] else "[warn]proven, not guarded[/]"
         ui.out.print("  [muted]proof[/]     " + ("[muted]no work yet[/]" if data["state"] == "no_work" else
-                                               "[ok]proven[/]" if not gaps else f"[warn]{len(gaps)} open[/]")
+                                               proven_txt if not gaps else f"[warn]{len(gaps)} open[/]")
                      + (f" · the gate stopped the agent {times}" if blocked else "")
                      + (f" [muted]· session {sid}[/]" if sid != "default" else ""))
+        if data["state"] != "no_work":
+            ui.out.print(f"  [muted]evidence  {_levels_text(data['evidence'])}[/]")
+        if Shadow(cfg).interrupted():
+            ui.out.print("  [bad]✗ rewind[/]   an earlier rewind did not finish. Run `keelyard rewind recover`.")
+        if not data["guarded"]:
+            ui.out.print(f"  [warn]{ui.WARN} gate[/]    [warn]{data['gate']['state']}[/]: {data['gate']['why']}", soft_wrap=True)
         if b.task:
             ui.out.print("  [muted]task[/]      ", end="")
             ui.plain(textwrap.shorten(b.task, 72, placeholder=" …"))
@@ -589,9 +602,11 @@ def do_rewind(a):
             else:
                 sys.stdout.write(text)
         return 0, {"step": a.step, "files": sh.get(a.step).files, "diff": text}
-    if a.action == "to":
-        res = sh.rewind(a.step)
+    if a.action in ("to", "recover"):
+        res = sh.rewind(a.step) if a.action == "to" else sh.recover()
         if h:
+            if res.get("backed_up"):
+                ui.line("warn", f"{len(res['backed_up'])} file(s) not in snapshots copied aside first", res["backup_dir"], width=0)
             extra = f"{len(res['removed'])} new file{'s' * (len(res['removed']) != 1)} removed" if res["removed"] else ""
             ui.line("ok", f"restored step #{res['restored']}", extra, width=0)
             ui.out.print(f"  [muted]changed your mind? keelyard rewind to {res['safety_step']}[/]")
@@ -607,6 +622,10 @@ def do_rewind(a):
     return 0, {"step": s.__dict__ if s else None}
 
 
+def _levels_text(levels: dict) -> str:
+    return " · ".join(f"{n} {k}" for k, n in reversed(list(levels.items())) if n) or "none yet"
+
+
 def do_proof(a):
     from . import ui
     from .proof import Proof
@@ -618,7 +637,9 @@ def do_proof(a):
     if a.action is None:
         a.action = "status"
     if a.action == "status":
-        gaps, state = pf.missing(), pf.state()
+        from .proof import gate_status
+
+        gaps, state, gate, levels = pf.missing(), pf.state(), gate_status(cfg), pf.levels()
         if h:
             if state == "no_work":
                 ui.out.print(f"[muted]{ui.DOT} no work yet[/]  [muted]no edits and no checklist in this session; nothing to prove[/]")
@@ -626,10 +647,25 @@ def do_proof(a):
                 ui.out.print("[warn]not proven yet[/]")
                 for g in gaps:
                     ui.line("skip", g, width=0)
+            elif gate["state"] != "hooked":
+                ui.out.print(f"[warn]{ui.WARN} proven, but not guarded[/]  [muted]{gate['why']}[/]", soft_wrap=True)
             else:
-                ui.out.print(f"[ok]{ui.OK} proven[/]  [muted]every requirement has evidence; tests pass after the last edit[/]")
+                ui.out.print(f"[ok]{ui.OK} proven[/]  [muted]tests pass on the current files; every requirement has evidence[/]")
+            if state != "no_work":
+                ui.out.print(f"  [muted]evidence  {_levels_text(levels)}[/]")
         return (0 if not gaps else CHECK_FAILED), {"state": state, "proven": state == "proven", "missing": gaps,
+                                                   "guarded": gate["state"] == "hooked", "gate": gate, "evidence": levels,
                                                    "bundle": pf.load().__dict__}
+    if a.action == "accept-tests":
+        ack = pf.accept_tests(a.reason)
+        if h:
+            ui.line("warn", "tests changed: accepted", f"recorded as agent-claimed: {ack['reason']}", width=0)
+        return 0, ack
+    if a.action == "reset":
+        pf.path.unlink(missing_ok=True)
+        if h:
+            ui.line("ok", "proof reset", f"session {pf.session}: start again with a test run", width=0)
+        return 0, {"reset": pf.session}
     if a.action == "add":
         reqs = pf.add_requirements(a.items)
         if h:

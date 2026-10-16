@@ -30,6 +30,10 @@ auto_test_after_edit = false
 enabled = true
 # Files larger than this are left out of snapshots and listed as skipped.
 max_file_mb = 20
+# Secrets (.env, *.pem, *.key, id_rsa*, credentials.json, ...) are never snapshotted. true = snapshot them too.
+include_secrets = false
+# More gitignore-style patterns to keep out of snapshots, e.g. ["data/", "*.sqlite"].
+exclude = []
 # Tools that trigger a snapshot after they run.
 snapshot_tools = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "apply_patch", "write", "edit", "bash", "patch"]
 
