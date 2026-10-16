@@ -54,3 +54,42 @@ def test_claude_read_dedupe_hook(cfg, project):
 def test_route():
     assert route("rename variable foo to bar")["tier"] == "cheap"
     assert route("debug the race condition in the scheduler and find the root cause")["tier"] == "strong"
+
+
+def test_read_cache_diff_is_exact_and_force_returns_full(cfg, project):
+    import re
+
+    base = [f"def f{i}():\n    return {i}\n" for i in range(120)]
+    (project / "m.py").write_text("".join(base))
+    rc = ReadCache(cfg, "s2")
+    rc.read("m.py")
+    new = base.copy()
+    new[7], new[90] = "def f7():\n    return 'seven'\n", "def f90():\n    return None\n"
+    (project / "m.py").write_text("".join(new))
+    diff = rc.read("m.py")
+    assert "diff only" in diff and "+    return 'seven'" in diff and "-    return 90" in diff
+    # correctness: applying the diff to what the agent had gives exactly the new file
+    old_lines, out, i = "".join(base).splitlines(), [], 0
+    for hunk in re.split(r"^@@", diff, flags=re.M)[1:]:
+        start = int(re.match(r" -(\d+)", hunk).group(1)) - 1
+        out += old_lines[i:start]
+        i = start
+        for ln in hunk.splitlines()[1:]:
+            if ln.startswith("-"):
+                i += 1
+            elif ln.startswith("+"):
+                out.append(ln[1:])
+            elif ln.startswith(" "):
+                out.append(ln[1:])
+                i += 1
+    out += old_lines[i:]
+    assert out == "".join(new).splitlines()
+    full = rc.read("m.py", force=True)
+    assert "return 'seven'" in full and "def f119" in full and "unchanged" not in full
+
+
+def test_read_cache_never_bigger_than_the_file(cfg, project):
+    (project / "tiny.txt").write_text("x = 1\n")
+    rc = ReadCache(cfg, "s3")
+    first = rc.read("tiny.txt")
+    assert rc.read("tiny.txt") == first  # the 'unchanged' notice would cost more than the file

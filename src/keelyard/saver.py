@@ -151,11 +151,13 @@ class ReadCache:
         if prev and whole and not force:
             if prev["sha"] == sha:
                 self.remember(p, data)
-                return (f"[keelyard] {file} is unchanged since you read it "
+                note = (f"[keelyard] {file} is unchanged since you read it "
                         f"({len(text.splitlines())} lines, sha {sha}). Use the copy already in your context, "
                         f"or call again with force=true if it was compacted away.")
+                if len(note) < len(text) + 6 * len(text.splitlines()):  # a tiny file is cheaper to resend than to describe
+                    return note
             old = self.blobs / prev["sha"]
-            if old.exists():
+            if prev["sha"] != sha and old.exists():
                 diff = "".join(difflib.unified_diff(
                     old.read_bytes().decode(errors="replace").replace("\r\n", "\n").splitlines(True), text.splitlines(True),
                     f"{file} (your previous read)", f"{file} (now)", n=2))
