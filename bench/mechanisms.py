@@ -35,7 +35,7 @@ def git_copy(src: Path, dst: Path) -> Path:
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", ".git", ".venv", ".keelyard", "*.pyc", "site", "dist"))
     subprocess.run(["git", "init", "-q"], cwd=dst, check=True)
     subprocess.run(["git", "add", "-A"], cwd=dst, check=True)
-    return dst
+    return dst.resolve()  # macOS: /var is /private/var, and the project root is always resolved
 
 
 def fixtures(tmp: Path) -> dict[str, tuple[Path, list[str]]]:

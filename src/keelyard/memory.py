@@ -274,8 +274,12 @@ class Memory:
         rows = self.db.execute(sql, args).fetchall()
         out, used = [], 0
         for agent, session, proj, ts, role, snip in rows[offset:]:
-            if len(out) >= limit or (out and used + len(snip) > budget_chars):
+            if len(out) >= limit:
                 break
+            if used + len(snip) > budget_chars:
+                if out:
+                    break
+                snip = snip[:budget_chars]  # the best hit always fits, shortened, so a page is never empty
             out.append({"agent": agent, "session": session, "project": proj, "ts": ts, "role": role, "snippet": snip})
             used += len(snip)
         res = {"hits": out, "total": len(rows), "remaining": max(0, len(rows) - offset - len(out))}
