@@ -163,6 +163,8 @@ def _parser() -> argparse.ArgumentParser:
         p.add_argument("--global", dest="glob", action="store_true", help=f"{verb} at user level (all agents if none named)")
         if name == "install":
             p.add_argument("--no-terse", dest="terse", action="store_false", help="leave out the terse-output rule")
+            p.add_argument("--preset", choices=["lean", "balanced", "max-quality"], default="lean",
+                           help="lean = default, fewest tokens; see `keelyard init --help`")
             p.add_argument("--codex-project-mcp", action="store_true",
                            help="Codex: register the keelyard MCP server in this project's .codex/config.toml instead of asking you to edit "
                         "~/.codex/config.toml (Codex reads it only for trusted projects)")
@@ -339,7 +341,7 @@ def do_init(a):
         return 0, data
     if h:
         ui.out.print()
-    cfg_path = config.init(root)
+    cfg_path = config.init(root, lean=getattr(a, "preset", "lean") == "lean")
     data["changed"].append(str(cfg_path.relative_to(root)))
     if h:
         ui.line("ok", "config", str(cfg_path.relative_to(root)))
@@ -406,6 +408,11 @@ def _checks() -> list[tuple[str, str, str, str]]:
     from . import ui
     from .adapters.install import global_agents, installed_global
 
+    from .adapters.install import global_lean_state
+
+    for x, gaps in global_lean_state().items():
+        if gaps:
+            rows.append(("global", "warn", f"{x} lean", "; ".join(gaps) + ". Hint: keelyard init --global"))
     for x in global_agents():
         rows.append(("global", "ok" if installed_global(x) else "bad", x,
                      "wired for all projects" if installed_global(x) else "marked global but not wired. Hint: keelyard init --global"))
@@ -420,6 +427,12 @@ def _checks() -> list[tuple[str, str, str, str]]:
         cfg = config.load(root)
         has = (root / ".keelyard" / "config.toml").exists()
         rows.append(("project", "ok" if has else "warn", "config", ".keelyard/config.toml" if has else "none yet. Hint: run `keelyard init`"))
+        if has:
+            pf = root / ".keelyard" / "preset.json"
+            preset = json.loads(pf.read_text(encoding="utf-8")).get("preset", "lean") if pf.exists() else "lean"
+            drift = config.lean_drift((root / ".keelyard" / "config.toml").read_text(encoding="utf-8")) if preset == "lean" else []
+            rows.append(("project", "warn" if drift else "ok", "lean defaults",
+                         ("overridden: " + "; ".join(drift) + ". The ~80% bench saving assumes these") if drift else f"preset {preset}"))
     except config.ProjectError as e:
         rows.append(("project", "bad", "config", str(e)))
     if cfg is not None and (root / ".keelyard").is_dir():
@@ -995,9 +1008,9 @@ def do_install(a):
         raise Fail(f"name an agent: keelyard {a.cmd} claude|codex|opencode, or use --global.")
     root = config.find_root()
     if a.cmd == "install":
-        config.init(root)
+        config.init(root, lean=getattr(a, "preset", "lean") == "lean")
     if a.cmd == "install":
-        done = inst.install(a.agent, root, codex_project_mcp=getattr(a, "codex_project_mcp", False),
+        done = inst.install(a.agent, root, preset=getattr(a, "preset", "lean"), codex_project_mcp=getattr(a, "codex_project_mcp", False),
                             terse=None if getattr(a, "terse", True) else False)
     else:
         done = inst.uninstall(a.agent, root)

@@ -216,10 +216,9 @@ def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
     done = []
     cfg_path = root / ".keelyard" / "config.toml"
     if preset == "lean" and cfg_path.exists():
-        text = cfg_path.read_text(encoding="utf-8")
-        text = re.sub(r"(?m)^inline_files_tokens = 0$", "inline_files_tokens = 1500", text)
-        text = re.sub(r"(?m)^auto_test_after_edit = false$", "auto_test_after_edit = true", text)
-        cfg_path.write_text(text, encoding="utf-8")
+        from ..config import apply_lean
+
+        cfg_path.write_text(apply_lean(cfg_path.read_text(encoding="utf-8")), encoding="utf-8")
         done.append(".keelyard/config.toml (lean: project files in the brief, tests run after each edit)")
     if preset == "lean" and agent == "opencode":
         path = root / "opencode.json"
@@ -380,7 +379,7 @@ def uninstall_guides(agent: str, root: Path) -> list[str]:
     return done
 
 
-def install(agent: str, root: Path, preset: str = "balanced", codex_project_mcp: bool = False,
+def install(agent: str, root: Path, preset: str = "lean", codex_project_mcp: bool = False,
             terse: bool | None = None) -> list[str]:
     global _PRESET, _TERSE
     if agent not in AGENTS:
@@ -614,6 +613,7 @@ def install_global(agent: str, home: Path | None = None, terse: bool | None = No
         for name in WORKFLOWS:
             (cmds / f"{name}.md").write_text(_command(name), encoding="utf-8")
         done += [str(p["claude_settings"]), str(p["claude_json"]), str(p["claude_md"])]
+        _global_lean(agent, p, True)
     elif agent == "codex":
         for k in ("codex_toml", "codex_hooks", "codex_md"):
             _backup(p[k])
@@ -634,13 +634,79 @@ def install_global(agent: str, home: Path | None = None, terse: bool | None = No
         for name in WORKFLOWS:
             (cmds / f"keelyard-{name}.md").write_text(_command(name), encoding="utf-8")
         done += [str(p["opencode_json"]), str(p["opencode_plugin"]), str(p["opencode_md"])]
+        if not opencode_mcp():
+            _global_lean(agent, p, True)
     _set_global_marker(agent, True)
     return done
+
+
+def _global_lean(agent: str, p: dict[str, Path], on: bool) -> None:
+    """The lean preset at user level: OpenCode's trimmed build agent, Claude Code's lean env. Only what is absent
+    is added, and what was added is recorded so uninstall_global takes back exactly that."""
+    m = _marker()
+    rec = json.loads(m.read_text(encoding="utf-8")) if m.exists() else {}
+    added = rec.setdefault("lean_added", {})
+    if agent == "opencode":
+        path = p["opencode_json"]
+        data = _read_json(path) if path.exists() or on else {}
+        if on:
+            key, want = ("agent", LEAN_OPENCODE_BUILD_V1) if _opencode_major() < 2 else ("agents", LEAN_OPENCODE_BUILD)
+            agents = data.setdefault(key, {})
+            if "build" not in agents or _is_lean_build(agents["build"], want):
+                agents["build"] = want
+                _write_json(path, data)
+                added["opencode"] = key
+        elif added.pop("opencode", None) and path.exists():
+            for key, want in (("agents", LEAN_OPENCODE_BUILD), ("agent", LEAN_OPENCODE_BUILD_V1)):
+                if _is_lean_build(data.get(key, {}).get("build"), want):
+                    del data[key]["build"]
+                    if not data[key]:
+                        del data[key]
+            _write_json(path, data)
+    elif agent == "claude":
+        path = p["claude_settings"]
+        data = _read_json(path) if path.exists() or on else {}
+        if on:
+            env = data.setdefault("env", {})
+            keys = [k for k in LEAN_CLAUDE_ENV if k not in env]
+            for k in keys:
+                env[k] = LEAN_CLAUDE_ENV[k]
+            _write_json(path, data)
+            added["claude"] = sorted(set(added.get("claude", [])) | set(keys))
+        elif added.get("claude") and path.exists():
+            env = data.get("env", {})
+            for k in added.pop("claude"):
+                if env.get(k) == LEAN_CLAUDE_ENV[k]:
+                    env.pop(k)
+            if "env" in data and not env:
+                del data["env"]
+            _write_json(path, data)
+    m.parent.mkdir(parents=True, exist_ok=True)
+    m.write_text(json.dumps(rec), encoding="utf-8")
+
+
+def global_lean_state(home: Path | None = None) -> dict[str, list[str]]:
+    """Per globally wired agent: which lean settings are missing or overridden at user level (empty = lean)."""
+    p, out = global_paths(home), {}
+    for agent in global_agents():
+        gaps = []
+        if agent == "opencode" and not os.environ.get("KEELYARD_OPENCODE_MCP"):
+            data = _read_json(p["opencode_json"]) if p["opencode_json"].exists() else {}
+            b = data.get("agents", {}).get("build") or data.get("agent", {}).get("build")
+            if not (_is_lean_build(b, LEAN_OPENCODE_BUILD) or _is_lean_build(b, LEAN_OPENCODE_BUILD_V1)):
+                gaps.append("opencode.json build agent is not keelyard's lean one")
+        if agent == "claude":
+            env = (_read_json(p["claude_settings"]) if p["claude_settings"].exists() else {}).get("env", {})
+            gaps += [f"{k}={env.get(k, '(unset)')} (lean: {v})" for k, v in LEAN_CLAUDE_ENV.items() if env.get(k) != v]
+        out[agent] = gaps
+    return out
 
 
 def uninstall_global(agent: str, home: Path | None = None) -> list[str]:
     p = global_paths(home)
     done = []
+    if agent in ("claude", "opencode"):
+        _global_lean(agent, p, False)
     if agent == "claude":
         if _strip_hooks(p["claude_settings"]):
             done.append(str(p["claude_settings"]))
@@ -685,9 +751,11 @@ def _marker() -> Path:
 
 def _set_global_marker(agent: str, on: bool) -> None:
     m = _marker()
-    agents = set(json.loads(m.read_text(encoding="utf-8")).get("agents", [])) if m.exists() else set()
+    rec = json.loads(m.read_text(encoding="utf-8")) if m.exists() else {}
+    agents = set(rec.get("agents", []))
     (agents.add if on else agents.discard)(agent)
-    m.write_text(json.dumps({"agents": sorted(agents)}), encoding="utf-8")
+    rec["agents"] = sorted(agents)
+    m.write_text(json.dumps(rec), encoding="utf-8")
 
 
 def global_agents() -> list[str]:

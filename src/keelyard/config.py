@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -190,11 +191,56 @@ def load(root: Path | None = None) -> Config:
     return Config(root=root, raw=raw)
 
 
-def init(root: Path) -> Path:
+# The lean defaults the session benchmark measured (bench/session). Each pair: the old default line -> the lean one.
+# Only lines still at the old default are changed, so a value the user set by hand is never touched.
+LEAN_LINES = {"inline_files_tokens = 0": "inline_files_tokens = 1500",
+              "auto_test_after_edit = false": "auto_test_after_edit = true"}
+
+
+def apply_lean(text: str) -> str:
+    for old, new in LEAN_LINES.items():
+        text = re.sub(rf"(?m)^{re.escape(old)}$", new, text)
+    return text
+
+
+def lean_drift(text: str) -> list[str]:
+    """Lean settings missing from a config text (a default line still there, or a line set to another value)."""
+    out = []
+    for new in LEAN_LINES.values():
+        key = new.split(" = ")[0]
+        m = re.search(rf"(?m)^{key} = (.*)$", text)
+        if not m or f"{key} = {m.group(1).strip()}" != new:
+            out.append(f"{key} = {m.group(1).strip() if m else '(missing)'} (lean: {new.split(' = ')[1]})")
+    return out
+
+
+def init(root: Path, lean: bool = True) -> Path:
+    """Create .keelyard/config.toml (lean defaults unless lean=False). An existing file is left as it is."""
     cfg = Config(root=root)
     if root in (Path.home().resolve(), Path(root.anchor)):
         raise ProjectError(f"refusing to set up keelyard in {root}. Hint: cd into a project folder first.")
     path = cfg.state / "config.toml"
     if not path.exists():
-        path.write_text(DEFAULT_CONFIG, encoding="utf-8")
+        path.write_text(apply_lean(DEFAULT_CONFIG) if lean else DEFAULT_CONFIG, encoding="utf-8")
     return path
+
+
+def migrate_lean(cfg: "Config") -> bool:
+    """Upgrade path: a project on the lean preset (or set up before presets existed) whose config still has the old
+    default lines gets the lean values. Returns True when the file changed."""
+    import json as _json
+
+    pf = cfg.state / "preset.json"
+    try:
+        preset = _json.loads(pf.read_text(encoding="utf-8")).get("preset", "lean") if pf.exists() else "lean"
+    except (OSError, ValueError):
+        return False
+    path = cfg.state / "config.toml"
+    if preset != "lean" or not path.exists():
+        return False
+    text = path.read_text(encoding="utf-8")
+    new = apply_lean(text)
+    if new == text:
+        return False
+    path.write_text(new, encoding="utf-8")
+    return True

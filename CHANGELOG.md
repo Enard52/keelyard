@@ -2,6 +2,20 @@
 
 ## 0.1.0 (unreleased)
 
+### Lean defaults made permanent (Oct 17, 2026)
+- Every install path ends on the lean defaults the session bench measured (~80% saving): `init`, `install <agent>`
+  (was balanced; now `--preset`, default lean), `init --global` (now adds OpenCode's lean build agent and Claude
+  Code's lean env at user level, taken back by `uninstall --global`), global first-session setup (lean config)
+- Upgrades: on SessionStart, a lean (or pre-preset) project whose config still has the old default lines gets the
+  lean values; values set by hand are kept
+- `keelyard doctor` warns when lean settings are overridden (project config or user-level agent config)
+- `tests/test_lean_defaults.py`: fails on drift (prompt length, denied tools, terse rule, brief size, filter on,
+  lean config, install/global/upgrade paths) - this is the per-PR static token budget check, run in CI
+- Lean brief: rename hint (every file + one `perl -pi` command); edit-heavy now 78% saving, 100% correct
+- TODO: scheduled weekly/manual session-bench workflow (2 reps/task, free model, fail <70% or correctness <
+  baseline); per-session token recording (OpenCode db, Claude Code/Codex logs) with `usage`/`doctor` warning under
+  target; Codex has no lean agent-config equivalent yet; docs page for these guarantees
+
 ### Ideas from popular agent tools, rebuilt from scratch (Oct 16, 2026)
 - Terse-output rule in every preset (CLAUDE.md, AGENTS.md); `--no-terse` / `KEELYARD_TERSE=0` to opt out;
   `bench/terse.py` measures it on a local model. Rule shortened to ~12 tokens after a 3-model, 32-prompt x 2-seed

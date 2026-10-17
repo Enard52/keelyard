@@ -347,6 +347,8 @@ def main(agent: str, event: str) -> int:
         cfg.require_project()
         if not (cfg.root / ".keelyard").is_dir() and _auto_setup(cfg):
             cfg = config.load(cfg.root)
+        elif event == "SessionStart" and config.migrate_lean(cfg):  # upgrade from an older version
+            cfg = config.load(cfg.root)
     except Exception:  # noqa: BLE001 - not a project, or a broken config: stay out of the agent's way
         return 0
     _seen(cfg, agent, event)
