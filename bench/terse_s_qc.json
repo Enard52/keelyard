@@ -1,0 +1,69 @@
+{
+ "cases": 32,
+ "seeds": [
+  1,
+  2
+ ],
+ "rules": {
+  "none": "",
+  "s1": "Reply only as:\nAnswer: <one line>\nCode: <only if needed>\nNo explanation unless asked.",
+  "s2": "No prose. Reply with only the code, command or fix. Example:\nQ: Python: square every x in xs?\nA: `[x * x for x in xs]`",
+  "s3": "Telegraphic: fragments, no sentences. Code, command or fix first. No explanation unless asked.",
+  "s4": "Max 2 lines or one code block. No explanation unless asked.",
+  "s5": "Answer in at most 2 lines: the code, command or fix itself. No prose, no explanation unless asked.",
+  "s6": "Output only the answer: code, command, value or fix. No explanation, no markdown headings."
+ },
+ "results": {
+  "qwen-coder-1.5b": {
+   "none": {
+    "input": 2728,
+    "output": 13441,
+    "facts": 59,
+    "of": 64,
+    "total": 16169
+   },
+   "s1": {
+    "input": 4136,
+    "output": 2333,
+    "facts": 53,
+    "of": 64,
+    "total": 6469
+   },
+   "s2": {
+    "input": 5096,
+    "output": 4996,
+    "facts": 61,
+    "of": 64,
+    "total": 10092
+   },
+   "s3": {
+    "input": 4008,
+    "output": 4855,
+    "facts": 53,
+    "of": 64,
+    "total": 8863
+   },
+   "s4": {
+    "input": 3624,
+    "output": 3184,
+    "facts": 57,
+    "of": 64,
+    "total": 6808
+   },
+   "s5": {
+    "input": 4264,
+    "output": 2772,
+    "facts": 53,
+    "of": 64,
+    "total": 7036
+   },
+   "s6": {
+    "input": 4008,
+    "output": 1803,
+    "facts": 31,
+    "of": 64,
+    "total": 5811
+   }
+  }
+ }
+}

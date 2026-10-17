@@ -138,8 +138,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--agent", action="append", choices=["claude", "codex", "opencode"], help="wire only this agent (repeatable)")
     p.add_argument("--no-agents", action="store_true", help="create the config but wire no agent")
     p.add_argument("--dry-run", action="store_true", help="print what would change and stop")
-    p.add_argument("--preset", choices=["lean", "balanced", "max-quality"], default="balanced",
-                   help="lean = fewest tokens (trimmed agent prompt/tools, capped output); balanced = default; "
+    p.add_argument("--preset", choices=["lean", "balanced", "max-quality"], default="lean",
+                   help="lean = default, fewest tokens (trimmed agent prompt/tools, capped output); balanced = all agent tools; "
                         "max-quality = every keelyard tool over MCP. `keelyard uninstall <agent>` reverts it")
     p.add_argument("--codex-project-mcp", action="store_true",
                    help="Codex: register the keelyard MCP server in this project's .codex/config.toml instead of asking you to edit "
@@ -345,7 +345,7 @@ def do_init(a):
         ui.line("ok", "config", str(cfg_path.relative_to(root)))
     for x in agents:
         was = installed(x, root)
-        items = install(x, root, preset=getattr(a, "preset", "balanced"), codex_project_mcp=getattr(a, "codex_project_mcp", False),
+        items = install(x, root, preset=getattr(a, "preset", "lean"), codex_project_mcp=getattr(a, "codex_project_mcp", False),
                         terse=None if getattr(a, "terse", True) else False)
         data["changed"] += [f"{x}: {i.splitlines()[0]}" for i in items]
         if h:
