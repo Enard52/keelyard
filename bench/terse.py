@@ -32,6 +32,12 @@ RULES = {
     "v5": "Be terse, but keep every code line, command, number and error name.",
     "v6": "Be terse. Keep code and facts.",
     "v7": "Be terse: no preamble or recap. Keep code exact.",
+    "s1": "Reply only as:\nAnswer: <one line>\nCode: <only if needed>\nNo explanation unless asked.",
+    "s2": "No prose. Reply with only the code, command or fix. Example:\nQ: Python: square every x in xs?\nA: `[x * x for x in xs]`",
+    "s3": "Telegraphic: fragments, no sentences. Code, command or fix first. No explanation unless asked.",
+    "s4": "Max 2 lines or one code block. No explanation unless asked.",
+    "s5": "Answer in at most 2 lines: the code, command or fix itself. No prose, no explanation unless asked.",
+    "s6": "Output only the answer: code, command, value or fix. No explanation, no markdown headings.",
     "shipped": SHIPPED,
 }
 

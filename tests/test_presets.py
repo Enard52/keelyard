@@ -11,7 +11,8 @@ def test_presets_known():
     assert set(PRESETS) == {"lean", "balanced", "max-quality"}
 
 
-def test_lean_opencode_trims_agent_and_uninstall_restores(project):
+def test_lean_opencode_trims_agent_and_uninstall_restores(project, monkeypatch):
+    monkeypatch.setattr("keelyard.adapters.install._opencode_major", lambda: 2)
     (project / "opencode.json").write_text(json.dumps({"theme": "dark"}))
     install("opencode", project, preset="lean")
     oc = json.loads((project / "opencode.json").read_text())
@@ -26,7 +27,24 @@ def test_lean_opencode_trims_agent_and_uninstall_restores(project):
     assert json.loads((project / "opencode.json").read_text()) == {"theme": "dark"}
 
 
-def test_lean_keeps_user_agent_settings(project):
+def test_lean_opencode_v1_config_and_restore(project, monkeypatch):
+    """OpenCode 1.x rejects V2 `agents`/`permissions`; lean writes the V1 shape there and uninstall removes it."""
+    monkeypatch.setattr("keelyard.adapters.install._opencode_major", lambda: 1)
+    (project / "opencode.json").write_text(json.dumps({"theme": "dark"}))
+    install("opencode", project, preset="lean")
+    oc = json.loads((project / "opencode.json").read_text())
+    assert "agents" not in oc
+    build = oc["agent"]["build"]
+    assert len(build["prompt"]) < 600
+    assert {"webfetch", "websearch", "task", "glob", "grep"} <= {k for k, v in build["permission"].items() if v == "deny"}
+    assert "bash" not in build["permission"] and "edit" not in build["permission"]
+    assert build["tools"] == {"todowrite": False, "todoread": False}
+    uninstall("opencode", project)
+    assert json.loads((project / "opencode.json").read_text()) == {"theme": "dark"}
+
+
+def test_lean_keeps_user_agent_settings(project, monkeypatch):
+    monkeypatch.setattr("keelyard.adapters.install._opencode_major", lambda: 2)
     (project / "opencode.json").write_text(json.dumps({"agents": {"build": {"system": "mine"}}}))
     install("opencode", project, preset="lean")
     assert json.loads((project / "opencode.json").read_text())["agents"]["build"] == {"system": "mine"}

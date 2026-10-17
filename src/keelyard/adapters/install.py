@@ -148,8 +148,8 @@ def _command(name: str) -> str:
 
 
 PRESETS = {
-    "lean": "fewest tokens: trimmed agent prompt and tools, no MCP catalog, short rules, capped tool output",
-    "balanced": "default: hooks, proof from shell test runs, filtered output; MCP only where it is cheap",
+    "lean": "default (keelyard init): fewest tokens: trimmed agent prompt and tools, no MCP catalog, short rules, capped tool output",
+    "balanced": "every agent tool kept: hooks, proof from shell test runs, filtered output; MCP only where it is cheap",
     "max-quality": "every keelyard tool over MCP, full rules; costs more tokens per turn",
 }
 _PRESET = "balanced"  # the preset of the install in progress
@@ -157,14 +157,46 @@ _PRESET = "balanced"  # the preset of the install in progress
 # OpenCode 2 `agents.build` override for the lean preset. A non-empty `system` replaces OpenCode's base prompt;
 # the denied tools drop out of the tool list. Shell, read, edit and write stay (the brief carries the file map).
 LEAN_OPENCODE_BUILD = {
-    "system": ("You are a coding agent in the user's repository. Your context already holds the project files and the "
-               "test results before any edit (keelyard ran them), which satisfies any 'run the tests before' request: "
-               "do not read, list or test before editing. Make every edit in one turn (parallel tool calls). keelyard "
-               "reruns the tests after each edit and appends the result, which satisfies 'run the tests after'. When "
-               "they pass, reply in one line. No preamble, plans or summaries."),
+    "system": ("You are a coding agent in the user's repository. Your context holds the project files and test "
+               "results (keelyard ran them): do not read, list, grep or test before editing. A question: answer from "
+               "that context, no tools. A change: make it, all edits in one turn (parallel calls; one sed or python "
+               "command for the same change in many files). Never claim a change without a tool call for it. "
+               "keelyard reruns the tests after each edit and appends the result: that is the test run the user "
+               "asked for, whatever command they named; do not run tests yourself. Then reply in one line."),
     "permissions": [{"action": a, "resource": "*", "effect": "deny"}
                     for a in ("webfetch", "websearch", "subagent", "skill", "question", "todowrite", "execute", "glob", "grep")],
 }
+# The same override for OpenCode 1.x, which rejects V2 `agents`/`permissions` ("Configuration is invalid"):
+# V1 uses `agent.build.prompt` and a `permission` map; todowrite/todoread have no permission key, so `tools` hides them.
+LEAN_OPENCODE_BUILD_V1 = {
+    "prompt": LEAN_OPENCODE_BUILD["system"],
+    "permission": {k: "deny" for k in ("webfetch", "websearch", "task", "skill", "question", "glob", "grep", "list", "lsp")},
+    "tools": {"todowrite": False, "todoread": False},
+}
+
+
+def _is_lean_build(build, want: dict) -> bool:
+    """keelyard's lean build agent, this version's or an earlier one's (same keys, prompt from keelyard)."""
+    if not isinstance(build, dict) or set(build) != set(want):
+        return False
+    text = build.get("system") or build.get("prompt") or ""
+    return build == want or text.startswith("You are a coding agent in the user's repository. Your context")
+
+
+def _opencode_major() -> int:
+    """Major version of the installed OpenCode (2 when unknown: the V2 config is what OpenCode 2 needs)."""
+    exe = shutil.which("opencode")
+    if not exe:
+        return 2
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30,
+                             stdin=subprocess.DEVNULL).stdout
+    except (OSError, subprocess.SubprocessError):
+        return 2
+    m = re.search(r"(\d+)\.\d+", out or "")
+    return int(m.group(1)) if m else 2
+
+
 # Claude Code settings.json env for the lean preset (documented Claude Code variables).
 LEAN_CLAUDE_ENV = {"BASH_MAX_OUTPUT_LENGTH": "12000", "MAX_MCP_OUTPUT_TOKENS": "8000",
                    "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1"}
@@ -192,11 +224,13 @@ def _apply_preset(agent: str, root: Path, preset: str) -> list[str]:
     if preset == "lean" and agent == "opencode":
         path = root / "opencode.json"
         data = _read_json(path)
-        agents = data.setdefault("agents", {})
-        if "build" not in agents or agents["build"] == LEAN_OPENCODE_BUILD:
-            agents["build"] = LEAN_OPENCODE_BUILD
+        v1 = _opencode_major() < 2
+        key, want = ("agent", LEAN_OPENCODE_BUILD_V1) if v1 else ("agents", LEAN_OPENCODE_BUILD)
+        agents = data.setdefault(key, {})
+        if "build" not in agents or _is_lean_build(agents["build"], want):
+            agents["build"] = want
             _write_json(path, data)
-            added["opencode_build"] = True
+            added["opencode_build"] = key
             done.append("opencode.json (lean build agent: short prompt, 9 tools off)")
     if preset == "lean" and agent == "claude":
         path = root / ".claude" / "settings.json"
@@ -222,12 +256,13 @@ def _remove_preset(agent: str, root: Path) -> list[str]:
     if agent == "opencode" and added.pop("opencode_build", None):
         path = root / "opencode.json"
         data = _read_json(path) if path.exists() else {}
-        if data.get("agents", {}).get("build") == LEAN_OPENCODE_BUILD:
-            del data["agents"]["build"]
-            if not data["agents"]:
-                del data["agents"]
-            _write_json(path, data)
-            done.append("opencode.json (lean build agent)")
+        for key, want in (("agents", LEAN_OPENCODE_BUILD), ("agent", LEAN_OPENCODE_BUILD_V1)):
+            if _is_lean_build(data.get(key, {}).get("build"), want):
+                del data[key]["build"]
+                if not data[key]:
+                    del data[key]
+                _write_json(path, data)
+                done.append("opencode.json (lean build agent)")
     if agent == "claude" and added.get("claude_env"):
         path = root / ".claude" / "settings.json"
         data = _read_json(path) if path.exists() else {}

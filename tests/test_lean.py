@@ -135,3 +135,37 @@ def test_proof_status_says_no_work_when_nothing_changed(cfg, project, capsys):
     assert data["state"] == "no_work" and data["proven"] is False
     main(["status"])
     assert "no work yet" in capsys.readouterr().out
+
+
+def test_large_repo_brief_inlines_only_files_the_task_names(project):
+    """Too many files for the budget: inline the ones holding the task's identifiers, not the smallest filler."""
+    import subprocess
+
+    from keelyard import config
+    from keelyard.brain import inline_files
+
+    for i in range(60):
+        (project / f"mod_{i:02d}.py").write_text("".join(f"def h{i}_{j}(v):\n    return v * {j}\n\n" for j in range(12)))
+    (project / "net.py").write_text("DEFAULT_TIMEOUT = 37\n\n\ndef parse_port(text):\n    return text.strip()\n" + "#\n" * 40)
+    subprocess.run(["git", "add", "-A"], cwd=project, check=True)
+    config.init(project)
+    cfg = config.load(project)
+    text = inline_files(cfg, 600, "parse_port() returns a string; it must return an int. Fix it.")
+    assert "--- net.py" in text and "--- mod_" not in text and "keelyard searched every project file" in text
+    assert approx(text) < 200
+    # no task: smallest files first, as before
+    assert "--- mod_" in inline_files(cfg, 600, "") or "--- app.py" in inline_files(cfg, 600, "")
+    # everything fits: all files, whatever the task says
+    small = inline_files(cfg, 100_000, "parse_port")
+    assert "--- mod_00.py" in small and "--- net.py" in small
+
+
+def approx(text):
+    return len(text) // 4
+
+
+def test_init_defaults_to_lean_preset():
+    from keelyard.cli import _parser
+
+    assert _parser().parse_args(["init"]).preset == "lean"
+    assert _parser().parse_args(["init", "--preset", "balanced"]).preset == "balanced"

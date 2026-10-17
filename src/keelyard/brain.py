@@ -76,7 +76,7 @@ def brief(cfg: Config, session: str, budget_tokens: int | None = None, query: st
             if rest > 40:
                 out.append(_cap(p, rest))
             break
-    inline = inline_files(cfg, int(cfg.section("brain").get("inline_files_tokens", 0) or 0))
+    inline = inline_files(cfg, int(cfg.section("brain").get("inline_files_tokens", 0) or 0), query or "")
     return "\n\n".join(out + ([inline] if inline else []))
 
 
@@ -84,34 +84,84 @@ SOURCE_EXT = {".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".rb", ".java",
               ".cpp", ".hpp", ".swift", ".toml", ".cfg", ".ini", ".json", ".yaml", ".yml", ".md", ".txt", ".sh"}
 
 
-def inline_files(cfg: Config, budget: int) -> str:
-    """Full text of the smallest project files, smallest first, within budget: the agent can skip read calls."""
+def _query_terms(query: str) -> set[str]:
+    """Identifier-like words of the task (parse_port, cart.py, DEFAULT_TIMEOUT), lower-cased, stop words dropped."""
+    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*", query or "")
+    out = set()
+    for w in words:
+        w = w.lower()
+        w = w.rsplit(".", 1)[0] if "." in w and w.rsplit(".", 1)[1] in {"py", "js", "ts", "go", "rs", "rb"} else w
+        if len(w) >= 4 and w not in STOP and w not in TASK_WORDS:
+            out.add(w)
+    return out
+
+
+# Words every coding task uses; they do not point at a file.
+TASK_WORDS = set("function file files test tests code project somewhere return returns must find change rename "
+                 "everywhere definition every that this there into only other others string int value which what "
+                 "where defines confirm everything passes pass run then first spaces strip".split())
+
+
+def inline_files(cfg: Config, budget: int, query: str = "") -> str:
+    """Full text of project files within budget, so the agent can skip read calls.
+
+    If every file fits, all of them go in, smallest first. If not (a large repo), only the files the task names or
+    whose text holds the task's identifiers go in, best match first: unrelated small files would cost tokens on
+    every request and save no read call. Without a task, smallest first as before.
+    """
     if budget <= 0:
         return ""
     from .codemap import AGENT_FILES, tracked_files
 
-    files = []
+    files, texts = [], {}
     for rel in tracked_files(cfg.root):
         p = cfg.root / rel
         if rel.split("/")[0] in AGENT_FILES or p.suffix not in SOURCE_EXT or rel.startswith(".git"):
             continue
         try:
-            files.append((p.stat().st_size, rel))
+            size = p.stat().st_size
         except OSError:
             continue
+        files.append((size, rel))
+    order = sorted(files)
+    total = 0
+    for size, _rel in order:
+        total += size // 4 + 8
+        if total > budget:
+            break
+    terms = _query_terms(query)
+    if total > budget and terms:
+        scored = []
+        for size, rel in order:
+            if size > budget * 4:
+                continue
+            try:
+                texts[rel] = text = (cfg.root / rel).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            low, name = text.lower(), rel.lower().rsplit("/", 1)[-1].rsplit(".", 1)[0]
+            score = sum(3 for t in terms if t in name) + sum(1 for t in terms if t in low)
+            if score:
+                scored.append((-score, size, rel))
+        order = [(size, rel) for _, size, rel in sorted(scored)]
     out, used = [], 0
-    for _, rel in sorted(files):
+    for _, rel in order:
         try:
-            text = (cfg.root / rel).read_text(encoding="utf-8")
+            text = texts.get(rel) or (cfg.root / rel).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
         t = approx_tokens(text) + 8
         if used + t > budget:
+            if terms and total > budget:
+                continue  # a later, smaller match may still fit
             break
         out.append(f"--- {rel}\n{text.rstrip()}")
         used += t
     if not out:
         return ""
+    if terms and total > budget:
+        return ("Files that mention the task's names (keelyard searched every project file; no need to grep, list "
+                "or read):\n" + "\n".join(out))
     return "Project files (current text; no need to read them again):\n" + "\n".join(out)
 
 
