@@ -56,7 +56,7 @@ def main() -> None:
     rows, ok = table(load(a.path), a.setup, a.gate or None)
     print("\n".join(rows))
     if not ok:
-        print(f"GATE FAIL: a task saves under {a.gate:.0%} or loses quality", file=sys.stderr)
+        print(f"GATE FAIL: a task saves under {a.gate or 0:.0%} or has lower success than baseline", file=sys.stderr)
     sys.exit(0 if ok else 1)
 
 
