@@ -159,8 +159,8 @@ _PRESET = "balanced"  # the preset of the install in progress
 LEAN_OPENCODE_BUILD = {
     "system": ("You are a coding agent in the user's repository. Your context holds the project files and test "
                "results (keelyard ran them): do not read, list, grep or test before editing. A question: answer from "
-               "that context, no tools. A change: make it, all edits in one turn (parallel calls; one sed or python "
-               "command for the same change in many files). Never claim a change without a tool call for it. "
+               "that context, no tools. A change: make it, all edits in one turn (parallel calls; one same change in many "
+               "files, e.g. a rename: ONE sed/perl command). Never claim a change without a tool call for it. "
                "keelyard reruns the tests after each edit and appends the result: that is the test run the user "
                "asked for, whatever command they named; do not run tests yourself. Then reply in one line."),
     "permissions": [{"action": a, "resource": "*", "effect": "deny"}

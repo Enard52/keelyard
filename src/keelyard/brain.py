@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import time
 from pathlib import Path
 
@@ -77,7 +78,41 @@ def brief(cfg: Config, session: str, budget_tokens: int | None = None, query: st
                 out.append(_cap(p, rest))
             break
     inline = inline_files(cfg, int(cfg.section("brain").get("inline_files_tokens", 0) or 0), query or "")
-    return "\n\n".join(out + ([inline] if inline else []))
+    hint = rename_hint(cfg, query or "")
+    return "\n\n".join(out + ([hint] if hint else []) + ([inline] if inline else []))
+
+
+_RENAME = re.compile(r"(?i)\brename\b[^`'\"\n]*?\b([A-Za-z_][A-Za-z0-9_]{2,})\b\s+(?:to|->|into)\s+`?([A-Za-z_][A-Za-z0-9_]{2,})\b")
+
+
+def rename_hint(cfg: Config, query: str, max_files: int = 200) -> str:
+    """For "rename X to Y": every tracked file holding X and one command that renames it in all of them.
+
+    Per-file read+edit costs a request per file and misses files outside the context; one command does not."""
+    m = _RENAME.search(query or "")
+    if not m:
+        return ""
+    old, new = m.group(1), m.group(2)
+    from .codemap import AGENT_FILES, tracked_files
+
+    word = re.compile(rf"\b{re.escape(old)}\b")
+    hits = []
+    for rel in tracked_files(cfg.root):
+        if rel.split("/")[0] in AGENT_FILES or rel.startswith(".git"):
+            continue
+        try:
+            text = (cfg.root / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        n = len(word.findall(text))
+        if n:
+            hits.append((rel, n))
+    if not hits or len(hits) > max_files:
+        return ""
+    names = " ".join(shlex.quote(r) for r, _ in hits)
+    total = sum(n for _, n in hits)
+    return (f"Rename {old} -> {new}: {total} uses in {len(hits)} files. Do it in one shell call:\n"
+            f"perl -pi -e 's/\\b{old}\\b/{new}/g' {names}")
 
 
 SOURCE_EXT = {".py", ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".rb", ".java", ".kt", ".cs", ".php", ".c", ".h",
