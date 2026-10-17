@@ -4,7 +4,7 @@
 
 Saving = 1 - mean(total tokens with keelyard) / mean(total tokens without keelyard), per task. Every attempt
 counts (failed runs too). Quality: correct runs / runs, which must not be lower than the baseline's.
-With --gate, exits 1 if any task saves less than the gate or loses quality.
+Exits 1 (the gate, default --gate 0.70) if any task saves less than the gate or loses quality.
 """
 from __future__ import annotations
 
@@ -51,11 +51,13 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("path")
     ap.add_argument("--setup", default="lean")
-    ap.add_argument("--gate", type=float, default=None)
+    ap.add_argument("--gate", type=float, default=0.70, help="minimum saving per task (0 = report only)")
     a = ap.parse_args()
-    rows, ok = table(load(a.path), a.setup, a.gate)
+    rows, ok = table(load(a.path), a.setup, a.gate or None)
     print("\n".join(rows))
-    sys.exit(0 if ok or a.gate is None else 1)
+    if not ok:
+        print(f"GATE FAIL: a task saves under {a.gate:.0%} or loses quality", file=sys.stderr)
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":
