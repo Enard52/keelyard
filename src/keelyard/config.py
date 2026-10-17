@@ -225,7 +225,7 @@ def init(root: Path, lean: bool = True) -> Path:
     return path
 
 
-def migrate_lean(cfg: "Config") -> bool:
+def migrate_lean(cfg: Config) -> bool:
     """Upgrade path: a project on the lean preset (or set up before presets existed) whose config still has the old
     default lines gets the lean values. Returns True when the file changed."""
     import json as _json

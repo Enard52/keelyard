@@ -406,9 +406,7 @@ def _checks() -> list[tuple[str, str, str, str]]:
         else:
             rows.append(("system", "skip", mod, f"optional, for {why}: pip install 'keelyard[{extra}]'"))
     from . import ui
-    from .adapters.install import global_agents, installed_global
-
-    from .adapters.install import global_lean_state
+    from .adapters.install import global_agents, global_lean_state, installed_global
 
     for x, gaps in global_lean_state().items():
         if gaps:
