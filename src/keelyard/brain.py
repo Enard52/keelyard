@@ -125,7 +125,7 @@ def inline_files(cfg: Config, budget: int, query: str = "") -> str:
         files.append((size, rel))
     order = sorted(files)
     total = 0
-    for size, rel in order:
+    for size, _rel in order:
         total += size // 4 + 8
         if total > budget:
             break
