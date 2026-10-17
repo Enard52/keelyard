@@ -4,21 +4,24 @@
 Real `opencode run` sessions (OpenCode 1.19.0, free `opencode/big-pickle`, $0) on six task types, each in a fresh
 repo; hidden checks decide success. Total = input + cache read + cache write + output + reasoning, keelyard's brief
 and hints included; every attempt counts. Target: ≥70% saving per task with success not lower than baseline
-(`python bench/session/report.py bench/session/runs_v3.jsonl` exits 1 otherwise).
+(`python bench/session/report.py bench/session/runs_v4.jsonl` exits 1 otherwise). v4 = commit 2b5e877.
 
 | task | runs (base/lean) | baseline tokens (mean) | lean tokens (mean) | saving | correct base | correct lean | gate |
 |---|---|---:|---:|---:|---:|---:|---|
-| edit-heavy | 8/8 | 44,844 | 16,952 | 62% | 100% | 88% | FAIL |
-| log-heavy | 5/5 | 47,014 | 12,584 | 73% | 80% | 100% | pass |
-| qa-large | 5/5 | 15,101 | 3,033 | 80% | 100% | 100% | pass |
-| read-heavy-large | 5/5 | 40,983 | 11,773 | 71% | 100% | 100% | pass |
-| small-feature | 5/5 | 52,480 | 10,991 | 79% | 100% | 100% | pass |
-| tiny-fix | 5/5 | 40,675 | 6,043 | 85% | 100% | 100% | pass |
-| **all (sum of means)** | | 241,098 | 61,376 | 75% | | | |
+| edit-heavy | 8/8 | 47,958 | 10,626 | 78% | 88% | 100% | pass |
+| log-heavy | 3/3 | 57,614 | 10,373 | 82% | 100% | 100% | pass |
+| qa-large | 3/3 | 20,863 | 3,053 | 85% | 100% | 100% | pass |
+| read-heavy-large | 3/3 | 48,533 | 10,595 | 78% | 100% | 100% | pass |
+| small-feature | 3/3 | 51,916 | 11,965 | 77% | 100% | 100% | pass |
+| tiny-fix | 3/3 | 40,642 | 6,134 | 85% | 100% | 100% | pass |
+| **all (sum of means)** | | 267,525 | 52,745 | 80% | | | |
 
-Gaps: edit-heavy fails the gate because one of 8 lean runs ignored the "one turn" rule, made 17 sequential edits
-(71k tokens) and missed a use; the other 7 average ~9k (≈80%). log-heavy's baseline includes one failed, cheap run.
-One model, one agent, 5–8 reps per task: indicative, not general. Claude Code and Codex are not measured here.
+edit-heavy fix (v3 → v4): in v3 one of 8 lean runs made 17 per-file read+edit calls (71k tokens) and missed a use
+(62% saving, 88% correct). The lean brief now carries a rename hint for "rename X to Y" tasks: every tracked file
+holding X and one `perl -pi` command over them; the lean prompt asks for one bulk command. All 8 v4 lean runs used it
+(2–4 calls, 7–16k tokens). v4 re-ran the other tasks with 3 reps each to check for regressions (v3: 5 reps, see
+`runs_v3.jsonl`). One model, one agent, 3–8 reps per task: indicative, not general. Claude Code and Codex are not
+measured here.
 
 ## Terse-output rule, measured on local models (Oct 17, 2026)
 
