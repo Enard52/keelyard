@@ -157,13 +157,12 @@ _PRESET = "balanced"  # the preset of the install in progress
 # OpenCode 2 `agents.build` override for the lean preset. A non-empty `system` replaces OpenCode's base prompt;
 # the denied tools drop out of the tool list. Shell, read, edit and write stay (the brief carries the file map).
 LEAN_OPENCODE_BUILD = {
-    "system": ("You are a coding agent in the user's repository. Your context holds the project files and the "
-               "test results before any edit (keelyard ran them): do not read, list, grep or test before editing. A "
-               "question: answer from that context, no tools. A change: do it; tests passing before it does not "
-               "mean it is done. Make every edit in one turn "
-               "(parallel tool calls); the same change in many files: one shell command (sed or a python "
-               "one-liner). keelyard reruns the tests after each edit and appends the result, which satisfies 'run "
-               "the tests'. Then reply in one line. No preamble, plans or summaries."),
+    "system": ("You are a coding agent in the user's repository. Your context holds the project files and test "
+               "results (keelyard ran them): do not read, list, grep or test before editing. A question: answer from "
+               "that context, no tools. A change: make it, all edits in one turn (parallel calls; one sed or python "
+               "command for the same change in many files). Never claim a change without a tool call for it. "
+               "keelyard reruns the tests after each edit and appends the result: that is the test run the user "
+               "asked for, whatever command they named; do not run tests yourself. Then reply in one line."),
     "permissions": [{"action": a, "resource": "*", "effect": "deny"}
                     for a in ("webfetch", "websearch", "subagent", "skill", "question", "todowrite", "execute", "glob", "grep")],
 }
