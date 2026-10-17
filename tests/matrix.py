@@ -159,7 +159,10 @@ HOOKS: list[Case] = [
          check=lambda d, p: d["decision"] == "block"),
     Case("hooks", "codex PostToolUse apply_patch", ["hook", "codex", "PostToolUse"], hook=True,
          stdin=ev("x", tool_name="apply_patch", tool_input={})),
-    Case("hooks", "codex Stop", ["hook", "codex", "Stop"], stdin=ev("x"), hook=True, check=lambda d, p: d["decision"] == "block"),
+    # lean (the default) reruns the tests after the apply_patch above; where pytest runs and passes that is proof, so
+    # Stop lets the agent finish. Without a working pytest, the gate must block.
+    Case("hooks", "codex Stop", ["hook", "codex", "Stop"], stdin=ev("x"), hook=True,
+         check=lambda d, p: d.get("decision") == "block" or (not d and _tests_pass(p))),
     Case("hooks", "opencode PostToolUse edit", ["hook", "opencode", "PostToolUse"], hook=True,
          stdin=json.dumps({"sessionID": "o", "tool": "edit", "args": {"filePath": "app.py"}})),
     Case("hooks", "unknown event is ignored", ["hook", "claude", "Future"], stdin="{}", hook=True),
@@ -212,6 +215,10 @@ def run_case(c: Case, proj: Path, env: dict) -> Outcome:
         if not ok and not note:
             note = f"check failed: {p.stdout[:200]}"
     return Outcome(c, ok, p.returncode, ms, note)
+
+
+def _tests_pass(proj: Path) -> bool:
+    return subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=proj, capture_output=True).returncode == 0
 
 
 def run_all(tmp: Path) -> list[Outcome]:
